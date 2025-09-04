@@ -332,7 +332,7 @@ class ThicknessPipeline:
 
 
 # -------------------------------
-# 4) 使用示例（伪代码，方便你接入 DM）
+# 4) 使用示例
 # -------------------------------
 if __name__ == "__main__":
     from Data.DataManager import DM
