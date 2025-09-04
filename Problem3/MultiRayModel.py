@@ -229,7 +229,7 @@ class MultiBeamSiThicknessFitter:
         """
         构造参数向量 p、下上界 lb/ub、以及每个参数的名字（便于读结果）
         参数顺序：
-            p = [ d,    # 共享厚度（cm）
+            p = [ d,    # 共享厚度（cm），用 FFT 的 Δν 给初值
                   (n1 或 A,B,C), (k1 可选),
                   α1, β1, α2, β2 ]
         """
@@ -239,39 +239,141 @@ class MultiBeamSiThicknessFitter:
         lb: List[float] = []
         ub: List[float] = []
 
-        # 共享厚度 d
-        p0.append(5e-4)                          # 50 μm 的保守初值；你也可换成 FFT 初值
-        lb.append(self.cfg.d_bounds_cm[0])
-        ub.append(self.cfg.d_bounds_cm[1])
+        # ---------- 1) 由 FFT 主峰估 Δν，给 d 的初值 ----------
+        def _delta_nu_fft(nu: np.ndarray, y: np.ndarray) -> Optional[float]:
+            """在等间隔 ν 上做 FFT，返回主频对应的 Δν≈1/f1；失败返回 None"""
+            nu = np.asarray(nu, dtype=float)
+            y = np.asarray(y, dtype=float)
+            if nu.size < 16:
+                return None
+            dnu = float(np.mean(np.diff(nu)))
+            if not np.isfinite(dnu) or dnu <= 0:
+                return None
+            # 去均值，减少直流泄漏
+            y0 = y - np.mean(y)
+            # 实数 FFT
+            Y = np.fft.rfft(y0)
+            freqs = np.fft.rfftfreq(nu.size, d=dnu)
+            # 跳过极低频（需至少覆盖若干个条纹周期）
+            nu_span = float(nu[-1] - nu[0])
+            low_cut = 3.0 / (nu_span + 1e-12)  # 至少 3 个周期
+            mask = freqs > low_cut
+            if not np.any(mask):
+                return None
+            ap = np.abs(Y)[mask]
+            fpos = freqs[mask]
+            i1 = int(np.argmax(ap))
+            f1 = float(fpos[i1])
+            return (1.0 / f1) if f1 > 0 else None
+
+        # 两条谱各自估 Δν
+        nu1, y1 = data["nu1"], data["y1"]
+        nu2, y2 = data["nu2"], data["y2"]
+        dnu1 = _delta_nu_fft(nu1, y1)
+        dnu2 = _delta_nu_fft(nu2, y2)
+
+        # 初始 n（供 θ_t 计算）
+        if disp.mode == "const":
+            n_init = disp.n1_init
+        else:  # cauchy：用 A_init 作为 n 的代表初值
+            n_init = disp.A_init
+
+        # 斯涅尔：theta_t(用 n_init 的实部)
+        def _theta_t(theta_i_deg: float, n: float, n0: float = 1.0) -> float:
+            s = (n0 / max(n, 1e-6)) * math.sin(math.radians(theta_i_deg))
+            s = max(-1.0, min(1.0, s))
+            return math.asin(s)
+
+        th1 = _theta_t(self.cfg.theta_deg_1, n_init)
+        th2 = _theta_t(self.cfg.theta_deg_2, n_init)
+
+        def _d_from_delta(delta_nu: Optional[float], theta_t_rad: float) -> Optional[float]:
+            if delta_nu is None or not np.isfinite(delta_nu) or delta_nu <= 0:
+                return None
+            denom = 2.0 * n_init * math.cos(theta_t_rad) * delta_nu
+            if denom <= 0:
+                return None
+            return 1.0 / denom  # cm
+
+        d0_list = []
+        for dn, th in ((dnu1, th1), (dnu2, th2)):
+            d_est = _d_from_delta(dn, th)
+            if d_est is not None and np.isfinite(d_est):
+                d0_list.append(d_est)
+
+        # d 初值：有则取中位数；没有则用一个温和保守值（5 μm）
+        d0_default = 5e-4  # 5 μm
+        d0 = float(np.median(d0_list)) if len(d0_list) > 0 else d0_default
+
+        # d 的边界
+        d_lo, d_hi = self.cfg.d_bounds_cm
+        p0.append(d0)
+        lb.append(d_lo)
+        ub.append(d_hi)
         names.append("d_cm")
 
-        # 折射率参数
+        # ---------- 2) 折射率参数（const 或 Cauchy） ----------
         if disp.mode == "const":
             p0.append(disp.n1_init)
-            lb.append(disp.n1_bounds[0]); ub.append(disp.n1_bounds[1]); names.append("n1")
+            lb.append(disp.n1_bounds[0])
+            ub.append(disp.n1_bounds[1])
+            names.append("n1")
             if disp.fit_k1:
-                p0.append(0.0); lb.append(disp.k1_bounds[0]); ub.append(disp.k1_bounds[1]); names.append("k1")
-        else:  # "cauchy"
+                p0.append(0.0)
+                lb.append(disp.k1_bounds[0])
+                ub.append(disp.k1_bounds[1])
+                names.append("k1")
+        else:
             p0.extend([disp.A_init, disp.B_init, disp.C_init])
             lb.extend([disp.A_bounds[0], disp.B_bounds[0], disp.C_bounds[0]])
             ub.extend([disp.A_bounds[1], disp.B_bounds[1], disp.C_bounds[1]])
             names.extend(["A", "B", "C"])
             if disp.fit_k1:
-                p0.append(0.0); lb.append(disp.k1_bounds[0]); ub.append(disp.k1_bounds[1]); names.append("k1")
+                p0.append(0.0)
+                lb.append(disp.k1_bounds[0])
+                ub.append(disp.k1_bounds[1])
+                names.append("k1")
 
-        # 观测侧 α、β（两角分别）
-        # α 初值取数据中位数（若是去趋势信号则接近 0），β 初值取 IQR 或 1.0
-        for j, key_y in enumerate(["y1", "y2"], start=1):
-            y = data[key_y]
-            alpha0 = float(np.median(y))
+        # ---------- 3) 观测侧 α/β（两角各一对），边界根据口径自适应 ----------
+        if self.cfg.fit_signal == "grid":
+            alpha_bounds = (-0.5, 1.5)
+            beta_bounds = (0.0, 5.0)
+        else:  # detrended / proc
+            alpha_bounds = (-0.3, 0.3)
+            beta_bounds = (0.1, 3.0)
+
+        def _alpha_beta_init(y: np.ndarray) -> Tuple[float, float]:
+            a0 = float(np.median(y))
             iqr = float(np.quantile(y, 0.75) - np.quantile(y, 0.25))
-            beta0 = iqr if iqr > 1e-3 else 1.0
-            p0.extend([alpha0, beta0])
-            lb.extend([self.cfg.alpha_bounds[0], self.cfg.beta_bounds[0]])
-            ub.extend([self.cfg.alpha_bounds[1], self.cfg.beta_bounds[1]])
-            names.extend([f"alpha{j}", f"beta{j}"])
+            b0 = iqr if iqr > 1e-6 else 1.0
+            # 夹到边界内，避免 x0 infeasible
+            a0 = min(max(a0, alpha_bounds[0] + 1e-6), alpha_bounds[1] - 1e-6)
+            b0 = min(max(b0, beta_bounds[0] + 1e-6), beta_bounds[1] - 1e-6)
+            return a0, b0
 
-        return np.array(p0, dtype=float), np.array(lb, dtype=float), np.array(ub, dtype=float), names
+        for y in (y1, y2):
+            a0, b0 = _alpha_beta_init(y)
+            p0.extend([a0, b0])
+            lb.extend([alpha_bounds[0], beta_bounds[0]])
+            ub.extend([alpha_bounds[1], beta_bounds[1]])
+            names.extend([f"alpha{1 if y is y1 else 2}", f"beta{1 if y is y1 else 2}"])
+
+        # ---------- 4) 最后保险：整体 clamp 初值到边界内 ----------
+        p0 = np.asarray(p0, dtype=float)
+        lb = np.asarray(lb, dtype=float)
+        ub = np.asarray(ub, dtype=float)
+
+        # 打印（可选）哪几项越界
+        bad_lo = np.where(p0 < lb)[0]
+        bad_hi = np.where(p0 > ub)[0]
+        # 若你想调试，可在此处 print(names[i], p0[i], lb[i]/ub[i])
+
+        # clamp
+        eps = 1e-12
+        p0 = np.maximum(p0, lb + eps)
+        p0 = np.minimum(p0, ub - eps)
+
+        return p0, lb, ub, names
 
     # ---------- 残差 ----------
     def _residuals(self, p: np.ndarray, data: Dict[str, Any]) -> np.ndarray:
@@ -427,13 +529,13 @@ if __name__ == "__main__":
         n0=1.0, n2=3.42,
         theta_deg_1=10.0, theta_deg_2=15.0,
         preprocess=PreprocessConfig(detrend=True, sg_window_frac=0.12, sg_polyorder=2, normalize_proc=False),
-        fit_signal="grid",                # 推荐先在原始 R_grid 上拟合
-        d_bounds_cm=(1e-6, 2e-3),         # [0.01 μm, 20 μm] 按经验收紧更稳
-        alpha_bounds=(-0.5, 1.5),
-        beta_bounds=(0.0, 5.0),
+        fit_signal="detrended",
+        d_bounds_cm=(5e-5, 2e-3),  # 0.5 μm ~ 20 μm
+        alpha_bounds=(-0.1, 0.1),
+        beta_bounds=(0.5, 3.0),
         polarization="unpolarized",
         dispersion=DispersionConfig(mode="const", fit_k1=False, n1_init=3.42,
-                                    n1_bounds=(3.2, 3.7))
+                                    n1_bounds=(3.35, 3.55))
     )
     fitter = MultiBeamSiThicknessFitter(cfg_const)
     res_const = fitter.fit_pair(df3, df4)
@@ -448,8 +550,8 @@ if __name__ == "__main__":
         preprocess=PreprocessConfig(detrend=True, sg_window_frac=0.12, sg_polyorder=2, normalize_proc=False),
         fit_signal="grid",
         d_bounds_cm=(1e-6, 2e-3),
-        alpha_bounds=(-0.2, 0.2),
-        beta_bounds=(0.2, 2.0),
+        alpha_bounds=(-0.5, 1.5),
+        beta_bounds = (0.0, 5.0),
         polarization="unpolarized",
         dispersion=DispersionConfig(
             mode="cauchy", fit_k1=False,
