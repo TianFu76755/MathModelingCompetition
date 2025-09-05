@@ -16,25 +16,25 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import least_squares
 
+
 # ========== 1. 配置类 ==========
 @dataclass
 class FPFitConfig:
     n0: float = 1.0        # 入射介质（空气）
-    n1: float = 3.42       # 外延层折射率（可作为常数或后续扩展拟合色散）
-    n2: float = 3.50       # 衬底折射率
+    n1: float = 3.42      # 外延层折射率
+    n2: float = 3.50     # 衬底折射率
     theta1_deg: float = 10.0   # 附件3入射角
     theta2_deg: float = 15.0   # 附件4入射角
     pol: str = "unpolarized"   # 偏振类型："s" / "p" / "unpolarized"
-    d_bounds_cm: Tuple[float, float] = (1e-6, 1e-2)  # 厚度边界 (cm) = [0.01 μm, 100 μm]
-    alpha_bounds: Tuple[float, float] = (-1.0, 1.0)  # 基线偏置
-    beta_bounds: Tuple[float, float] = (0.0, 2.0)    # 缩放因子
+    d_bounds_cm: Tuple[float, float] = (4.5e-4, 6e-4)  # 厚度边界 (cm) = [0.01 μm, 100 μm]
+    alpha_bounds: Tuple[float, float] = (0, 5.0)  # 基线偏置
+    beta_bounds: Tuple[float, float] = (0, 5.0)    # 缩放因子
     verbose: bool = True
 
 
 # ========== 2. Fabry–Pérot 模型工具 ==========
 class FabryPerotModel:
     """Fabry–Pérot 干涉的 TMM 实现"""
-
     @staticmethod
     def snell_theta(n_from: float, n_to: float, theta_from_rad: float) -> float:
         """斯涅尔定律求折射角"""
@@ -108,7 +108,8 @@ class MultiBeamThicknessFitter:
     """
 
     def __init__(self, cfg: Optional[FPFitConfig] = None):
-        self.cfg = cfg or FPFitConfig()
+        self.cfg = cfg
+        if cfg is None: raise ValueError
 
     def _prepare(self, df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
         """把 DataFrame 转为 (nu_cm1, R_obs)"""
@@ -123,7 +124,7 @@ class MultiBeamThicknessFitter:
         nu2, R2 = self._prepare(df2)
 
         # 初值：用FFT周期法估个 d0，这里简单给一个中间值
-        d0 = 6e-4  # 6 μm (cm单位)
+        d0 = 5.2e-4  # 5.2 μm (cm单位)
 
         # 初值的 alpha/beta
         a1_0, b1_0 = 0.0, 1.0
@@ -189,5 +190,4 @@ if __name__=="__main__":
     res = fitter.fit(df3, df4)
 
     from pprint import pprint
-
     pprint(res)

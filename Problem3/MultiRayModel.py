@@ -120,7 +120,7 @@ class DispersionConfig:
     # 初值（const 模式）
     n1_init: float = 3.42         # Si 近红外的常见量级
     # 初值（cauchy）
-    A_init: float = 3.42
+    A_init: float = 3.42 + 0.005
     B_init: float = 0.0
     C_init: float = 0.0
     # 边界

@@ -39,7 +39,7 @@ class SpectrumPreprocessor:
     @staticmethod
     def _uniform_grid(x: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         idx = np.argsort(x)
-        x = x[idx];
+        x = x[idx]
         y = y[idx]
         dx = np.mean(np.diff(x))
         if not np.isfinite(dx) or dx <= 0:
@@ -367,7 +367,7 @@ if __name__ == "__main__":
     # 例：硅片（附件3，10°）
     df3 = DM.get_data(3)
     cfg3 = IndicatorsConfig(
-        fp_params=FPParams(n0=1.0, n1=3.42, n2=3.42, theta0_deg=10, pol="unpolarized")
+        fp_params=FPParams(n0=1.0, n1=3.42, n2=3.42 + 0.005, theta0_deg=10, pol="unpolarized")
     )
     res3 = IndicatorsRunner(cfg3).run(df3)
     pprint(f"res3: {res3}")
@@ -375,22 +375,10 @@ if __name__ == "__main__":
     # 例：硅片（附件4，15°）
     df4 = DM.get_data(4)
     cfg4 = IndicatorsConfig(
-        fp_params=FPParams(n0=1.0, n1=3.42, n2=3.42, theta0_deg=15, pol="unpolarized")
+        fp_params=FPParams(n0=1.0, n1=3.42, n2=3.42 + 0.005, theta0_deg=15, pol="unpolarized")
     )
     res4 = IndicatorsRunner(cfg4).run(df4)
     pprint(f"res4: {res4}")
 
-    # df1 = DM.get_data(1)
-    # cfg1 = IndicatorsConfig(
-    #     fp_params=FPParams(n0=1.0, n1=2.59, n2=2.59, theta0_deg=10, pol="unpolarized")
-    # )
-    # res1 = IndicatorsRunner(cfg1).run(df1)
-    # pprint(f"res1: {res1}")
-    #
-    # # 例：硅片（附件4，15°）
-    # df2 = DM.get_data(2)
-    # cfg2 = IndicatorsConfig(
-    #     fp_params=FPParams(n0=1.0, n1=2.59, n2=2.59, theta0_deg=15, pol="unpolarized")
-    # )
-    # res2 = IndicatorsRunner(cfg2).run(df2)
-    # pprint(f"res4: {res2}")
+    from Model.Physics.TwoBeamPhysics import TwoBeamPhysics
+    pprint(TwoBeamPhysics.compute_thickness(theta_i_deg=10, n=3.42, delta_nu_cm1=360.0929416671038))
