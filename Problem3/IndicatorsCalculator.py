@@ -10,6 +10,7 @@ Q3 指标计算程序（不做自动判定）：
 from __future__ import annotations
 import math
 from dataclasses import dataclass
+from pprint import pprint
 from typing import Dict, Any, Tuple, Optional
 
 import numpy as np
@@ -369,7 +370,7 @@ if __name__ == "__main__":
         fp_params=FPParams(n0=1.0, n1=3.42, n2=3.42, theta0_deg=10, pol="unpolarized")
     )
     res3 = IndicatorsRunner(cfg3).run(df3)
-    print(f"res3: {res3}")
+    pprint(f"res3: {res3}")
 
     # 例：硅片（附件4，15°）
     df4 = DM.get_data(4)
@@ -377,19 +378,19 @@ if __name__ == "__main__":
         fp_params=FPParams(n0=1.0, n1=3.42, n2=3.42, theta0_deg=15, pol="unpolarized")
     )
     res4 = IndicatorsRunner(cfg4).run(df4)
-    print(f"res4: {res4}")
+    pprint(f"res4: {res4}")
 
-    df1 = DM.get_data(1)
-    cfg1 = IndicatorsConfig(
-        fp_params=FPParams(n0=1.0, n1=2.59, n2=2.59, theta0_deg=10, pol="unpolarized")
-    )
-    res1 = IndicatorsRunner(cfg1).run(df1)
-    print(f"res1: {res1}")
-
-    # 例：硅片（附件4，15°）
-    df2 = DM.get_data(2)
-    cfg2 = IndicatorsConfig(
-        fp_params=FPParams(n0=1.0, n1=2.59, n2=2.59, theta0_deg=15, pol="unpolarized")
-    )
-    res2 = IndicatorsRunner(cfg2).run(df2)
-    print(f"res4: {res2}")
+    # df1 = DM.get_data(1)
+    # cfg1 = IndicatorsConfig(
+    #     fp_params=FPParams(n0=1.0, n1=2.59, n2=2.59, theta0_deg=10, pol="unpolarized")
+    # )
+    # res1 = IndicatorsRunner(cfg1).run(df1)
+    # pprint(f"res1: {res1}")
+    #
+    # # 例：硅片（附件4，15°）
+    # df2 = DM.get_data(2)
+    # cfg2 = IndicatorsConfig(
+    #     fp_params=FPParams(n0=1.0, n1=2.59, n2=2.59, theta0_deg=15, pol="unpolarized")
+    # )
+    # res2 = IndicatorsRunner(cfg2).run(df2)
+    # pprint(f"res4: {res2}")

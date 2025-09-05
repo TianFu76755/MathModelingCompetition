@@ -530,13 +530,14 @@ if __name__ == "__main__":
         theta_deg_1=10.0, theta_deg_2=15.0,
         preprocess=PreprocessConfig(detrend=True, sg_window_frac=0.12, sg_polyorder=2, normalize_proc=False),
         fit_signal="detrended",
-        d_bounds_cm=(5e-5, 2e-3),  # 0.5 μm ~ 20 μm
-        alpha_bounds=(-0.1, 0.1),
-        beta_bounds=(0.5, 3.0),
+        d_bounds_cm=(1e-4, 136e-4),  # 2–12 μm
+        alpha_bounds=(-0.05, 0.05),  # 固定 α=0
+        beta_bounds=(0.9, 1.1),  # 固定 β=1
         polarization="unpolarized",
         dispersion=DispersionConfig(mode="const", fit_k1=False, n1_init=3.42,
-                                    n1_bounds=(3.35, 3.55))
+                                    n1_bounds=(3.42-1e-6, 3.42+1e-6))  # 先固定 n1
     )
+
     fitter = MultiBeamSiThicknessFitter(cfg_const)
     res_const = fitter.fit_pair(df3, df4)
     from pprint import pprint
