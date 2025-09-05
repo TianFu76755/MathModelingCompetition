@@ -5,18 +5,17 @@ UpgradedTwoBeam.py
 - 允许弱色散 n(ν)：Cauchy 到 1/λ²
 - 支持双角联合拟合（共享 d 和 n(·) 参数；各角独立 A,B,φ）
 - FFT 用于初值与质控；相位拟合给最终厚度
-- 提供可靠性指标：RMSE、主峰清晰度、跨角一致性、自举置信区间（可选）
-- 自带可视化函数（matplotlib，未使用 seaborn）
+- 可靠性：RMSE、主峰清晰度、跨角一致性、自举置信区间（可选）
+- 可视化函数（matplotlib）
 
 依赖：
   numpy, pandas, scipy, matplotlib
-
-使用示例见最下方 “if __name__ == '__main__':”
 """
 
 from __future__ import annotations
 import math
 from dataclasses import dataclass
+from pprint import pprint
 from typing import Dict, Any, Optional, Tuple, List
 
 import numpy as np
@@ -26,7 +25,6 @@ from scipy.signal import savgol_filter
 from scipy.fft import rfft, rfftfreq
 from scipy.optimize import least_squares
 import matplotlib.pyplot as plt
-
 
 # =========================================================
 # 0) 通用工具 & 物理函数
@@ -82,7 +80,7 @@ class SpectrumPreprocessor:
     将 (ν[cm^-1], R[%]) → 等间隔 ν 栅格，并进行温和去趋势。
     """
     def __init__(self, cfg: Optional[PreprocessConfig] = None):
-        self.cfg = cfg or PreprocessConfig()
+        self.cfg: PreprocessConfig = cfg or PreprocessConfig()
 
     def _to_uniform_grid(self, nu: np.ndarray, R: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         idx = np.argsort(nu)
@@ -246,7 +244,6 @@ class JointFitConfig:
     fix_B: Optional[float] = None    # 例如 0.0；None 表示不固定
 
 
-
 class JointTwoBeamFitter:
     def __init__(self,
                  n_model: NModel,
@@ -337,7 +334,7 @@ class JointTwoBeamFitter:
         参数布局：
           - constant: [d_um, n0, phi1,a01,a11, phi2,a02,a12, ...]
           - cauchy  : [d_um, n0, B, phi1,a01,a11, phi2,a02,a12, ...]
-        其中 a0k,a1k 是第 k 个角的 A、B
+        其中 a0k,a1k 是第 k 个角的 A、B（幅度）
         """
         kind = self.n_model.kind
         K = len(self.theta_list_rad)
@@ -351,6 +348,7 @@ class JointTwoBeamFitter:
             n_params = np.array([n0, B], dtype=float)
         else:
             n_params = np.array([n0], dtype=float)
+            B = 0.0  # 为先验打印兼容
 
         res_all = []
         for k in range(K):
@@ -396,7 +394,6 @@ class JointTwoBeamFitter:
         prepped = aux["prepped"]
         fft_signals = aux["fft_signals"]
 
-        prepped = aux["prepped"]
         # FFT 初值
         d0_um, fpeaks = self._initial_d_um_from_fft(nu_list, prepped, n_eff=n0_init, fft_signals=fft_signals)
 
@@ -433,17 +430,25 @@ class JointTwoBeamFitter:
             n0_lo = n0_hi = n0_init
         else:
             n0_lo, n0_hi = self.fit_cfg.n0_bounds
+
         p_elems.append(float(n0_init))
         lo_elems.append(float(n0_lo))
         hi_elems.append(float(n0_hi))
+
+        EPS_FIX = 1e-9  # 用于“固定参数”的极小宽度，确保 lb < ub
 
         # B 参数（仅 cauchy；可固定或给边界）
         if self.n_model.kind == "cauchy":
             if self.fit_cfg.fix_B is not None:
                 B_init = float(self.fit_cfg.fix_B)
-                B_lo = B_hi = B_init
+                # 用一个极小宽度“夹住”以满足 least_squares: lb < ub
+                B_lo = B_init - EPS_FIX
+                B_hi = B_init + EPS_FIX
             else:
                 B_lo, B_hi = self.fit_cfg.B_bounds
+                # 兜底，防止外部给成相等或反序
+                if not (B_lo < B_hi):
+                    B_hi = B_lo + 1e-9
             p_elems.append(float(B_init))
             lo_elems.append(float(B_lo))
             hi_elems.append(float(B_hi))
@@ -456,7 +461,7 @@ class JointTwoBeamFitter:
             # phi
             p_elems.append(phi0)
             lo_elems.append(-2.0 * math.pi)
-            hi_elems.append(2.0 * math.pi)
+            hi_elems.append( 2.0 * math.pi)
 
             # A
             p_elems.append(A0)
@@ -468,31 +473,29 @@ class JointTwoBeamFitter:
             lo_elems.append(0.0)
             hi_elems.append(3.0 * span)
 
-        # 转为 numpy 并做一致性检查
-        p0 = np.array(p_elems, dtype=float)
-        bounds = (np.array(lo_elems, dtype=float), np.array(hi_elems, dtype=float))
+        # 转为 numpy 并做一致性检查 + 拉平
+        p0 = np.asarray(p_elems, dtype=np.float64).ravel()
+        lb = np.asarray(lo_elems, dtype=np.float64).ravel()
+        ub = np.asarray(hi_elems, dtype=np.float64).ravel()
 
-        # --- 统一拉平成 float64 一维向量（避免奇怪的 dtype/shape 传播） ---
-        p0 = np.asarray(p0, dtype=np.float64).ravel()
-        lb = np.asarray(bounds[0], dtype=np.float64).ravel()
-        ub = np.asarray(bounds[1], dtype=np.float64).ravel()
+        # ---- 强制修正：保证所有 lb < ub ----
+        for i in range(len(p0)):
+            if not (lb[i] < ub[i]):
+                center = float(p0[i])
+                lb[i] = center - 1e-9
+                ub[i] = center + 1e-9
+
         assert lb.shape == p0.shape and ub.shape == p0.shape, \
             f"bounds shape {lb.shape}/{ub.shape} != p0 {p0.shape}"
-        # 可临时打开：看清楚每个参数位
-        # print("n_params=", p0.size, "\np0=", p0, "\nlb=", lb, "\nub=", ub)
-
         bounds = (lb, ub)
-
-        assert p0.ndim == 1
-        assert bounds[0].shape == p0.shape and bounds[1].shape == p0.shape, \
-            f"bounds shape {bounds[0].shape}/{bounds[1].shape} != p0 {p0.shape}"
 
         # —— 鲁棒尺度：'auto' 则用 MAD 自适应 ——
         if self.fit_cfg.f_scale == "auto":
-            mads = [robust_mad(y) for y in y_list]
+            mads = [max(robust_mad(y), 1e-6) for y in y_list]
             f_scale_to_use = float(np.median(mads)) if len(mads) else 1.0
         else:
             f_scale_to_use = float(self.fit_cfg.f_scale) if self.fit_cfg.f_scale is not None else 1.0
+            f_scale_to_use = max(f_scale_to_use, 1e-6)
 
         # ---------- 最小二乘 ----------
         res = least_squares(
@@ -763,14 +766,12 @@ def run_dual_angle_fit(df1: pd.DataFrame, df2: pd.DataFrame,
 # =========================================================
 
 if __name__ == "__main__":
+    from Toolkit.ChineseSupport import show_chinese
+    show_chinese()
+    # 你工程里的读取方式
     from Data.DataManager import DM
-
-    # 假设你已有 DM.get_data(idx) 返回 DataFrame
     df1 = DM.get_data(1)
     df2 = DM.get_data(2)
-    from Toolkit.ChineseSupport import show_chinese
-
-    show_chinese()
 
     # —— 一键双角拟合（推荐） ——
     res = run_dual_angle_fit(
@@ -782,17 +783,17 @@ if __name__ == "__main__":
         fit_signal="detrended",
         loss="cauchy",
     )
-    # 进入 fitter 修改 fit_cfg：
-    fitter = res["fitter"]
+
+    # 先把 n 固定住，确保 d 与 FFT 周期一致；需要时再放开
+    fitter: JointTwoBeamFitter = res["fitter"]
     fitter.fit_cfg.fix_n0 = 2.60
-    fitter.fit_cfg.fix_B = 0.0
-    # 然后重新 fit 一次：
+    fitter.fit_cfg.fix_B  = 0.0
     res = fitter.fit([df1, df2], n0_init=2.60, B_init=0.0)
 
     print("=== 结果摘要 ===")
-    print(res["summary"])
+    pprint(res)
+
     # 作图（可选）
-    fitter: JointTwoBeamFitter = res["fitter"]
     fitter.plot_fft([df1, df2], savepath=None)
     fitter.plot_spectrum_and_fit([df1, df2], res, savepath=None)
     plt.show()
