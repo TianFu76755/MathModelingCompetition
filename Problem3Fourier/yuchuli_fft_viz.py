@@ -399,8 +399,8 @@ def preprocess_and_plot_compare(
     plt.plot(nu_u, y_u_dm, label="预处理后（去基线+选段+等间距+去均值）", linewidth=1.5)
     if show_windowed:
         plt.plot(nu_u, y_w, label="预处理后（再乘窗）", linewidth=1.0)
-    plt.xlabel("Wavenumber (cm$^{-1}$)")
-    plt.ylabel("Signal (a.u.)")
+    plt.xlabel("波数 (cm$^{-1}$)")
+    plt.ylabel("信号 (a.u.)")
     plt.title("原始信号 vs 预处理结果")
     plt.legend(loc="best")
     plt.tight_layout()
