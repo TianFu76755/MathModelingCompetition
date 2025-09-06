@@ -69,99 +69,136 @@ def airy_single_layer_reflectance(
     R = 0.5*(np.abs(rs)**2 + np.abs(rp)**2)  # 非偏振
     return R.real
 
-def _solve_linear_ab(y, m):
-    M = np.vstack([m, np.ones_like(m)]).T
-    x, *_ = np.linalg.lstsq(M, y, rcond=None)
-    a, b = float(x[0]), float(x[1])
-    return a, b
+def _solve_linear_ab_poly(y, m, x=None, poly_deg=0):
+    """
+    用闭式最小二乘解线性尺度/基线：
+    y ≈ a*m + (b0 + b1*x + b2*x^2 + ...), 其中 x=nu 或 lambda
+    poly_deg=0 表示只有常数项（即原来的 a,b）
+    """
+    if x is None or poly_deg == 0:
+        M = np.vstack([m, np.ones_like(m)]).T
+    else:
+        cols = [m]
+        for k in range(poly_deg+1):
+            cols.append(x**k)
+        M = np.vstack(cols).T
+    coef, *_ = np.linalg.lstsq(M, y, rcond=None)
+    a = float(coef[0])
+    b = coef[1:].astype(float) if len(coef) > 1 else np.array([0.0])
+    return a, b, M @ coef  # 同时返回拟合后的线性部分 a*m + baseline
 
 # ---------------- 单角度拟合 & 多角联合拟合 ----------------
 
-def fit_single_angle(nu, R_meas, d0_um, n0=1.0, n1=3.50, n2=2.55, theta_deg=10.0,
-                     search_span_um=40.0, coarse_N=1201, refine_iters=3):
+def fit_single_angle(
+    nu, R_meas, d0_um,
+    n0=1.0, n1=3.50, n2=2.55, theta_deg=10.0,
+    search_span_um=40.0, coarse_N=1201, refine_iters=3,
+    poly_deg_baseline=0,               # 新增：每角可选多项式基线（0=仅常数）
+    force_positive_thickness=True,     # 新增：厚度强制为正
+    verbose=False
+):
+    """
+    单角度 Airy 拟合（避免负厚度；可选多项式基线）
+    返回字典包含 d_um(正值)、a、基线系数、χ²、RMSE、拟合曲线与残差。
+    """
     nu = np.asarray(nu, float); R_meas = np.asarray(R_meas, float)
-    d0_cm = d0_um*1e-4; span_cm = search_span_um*1e-4
+    d0_cm = d0_um * 1e-4
+    span_cm = search_span_um * 1e-4
+
     def objective(d_cm):
         Rm = airy_single_layer_reflectance(nu, d_cm, n0, n1, n2, theta_deg)
-        a,b = _solve_linear_ab(R_meas, Rm)
-        resid = R_meas - (a*Rm + b)
-        return float(np.mean(resid**2)), a, b
+        a, c_vec, y_lin = _solve_linear_ab_poly(R_meas, Rm, x=nu, poly_deg=poly_deg_baseline)
+        resid = R_meas - y_lin
+        return float(np.mean(resid**2)), a, c_vec, y_lin, resid, Rm
 
-    left = d0_cm - span_cm; right = d0_cm + span_cm
-    N = coarse_N
-    for _ in range(refine_iters):
-        ds = np.linspace(left, right, N)
-        vals = np.array([objective(d)[0] for d in ds])
-        k = int(np.argmin(vals))
-        k0 = max(0, k-5); k1 = min(N-1, k+5)
-        left, right = ds[k0], ds[k1]
-        N = max(401, N//3)
+    # 厚度搜索区间：若强制为正，从一个极小正数起
+    left  = max(1e-9, d0_cm - span_cm) if force_positive_thickness else (d0_cm - span_cm)
+    right = max(1e-9, d0_cm + span_cm)
 
-    d_best = 0.5*(left+right)
-    chi2, a_best, b_best = objective(d_best)
-    Rm = airy_single_layer_reflectance(nu, d_best, n0, n1, n2, theta_deg)
-    yfit = a_best*Rm + b_best
-    resid = R_meas - yfit
-    return {
-        "theta_deg": theta_deg,
-        "d_um": d_best*1e4, "a": a_best, "b": b_best, "chi2": chi2,
-        "nu": nu, "R_meas": R_meas, "R_model": Rm, "R_fit": yfit, "residual": resid
-    }
-
-def fit_multi_angle(data_list, d0_um, n0=1.0, n1=3.50, n2=2.55,
-                    search_span_um=40.0, coarse_N=1201, refine_iters=3):
-    """
-    data_list: 列表 [ (nu_1, R_1, theta_1), (nu_2, R_2, theta_2), ... ]
-               每条曲线的 nu 可不同，但建议都为等间距波数
-    返回：联合拟合后的 d 以及每个角度的 a,b、拟合与残差
-    """
-    # 准备插值到公共网格（可选）：这里直接各自用各自的 nu，目标函数相加
-    d0_cm = d0_um*1e-4; span_cm = search_span_um*1e-4
-
-    # 预先转换为 numpy
-    D = []
-    for (nu, R, th) in data_list:
-        D.append((np.asarray(nu, float), np.asarray(R, float), float(th)))
-
-    def objective(d_cm):
-        chi2_sum = 0.0
-        per_angle = []
-        for (nu, R, th) in D:
-            Rm = airy_single_layer_reflectance(nu, d_cm, n0, n1, n2, th)
-            a,b = _solve_linear_ab(R, Rm)
-            resid = R - (a*Rm + b)
-            chi2 = float(np.mean(resid**2))
-            chi2_sum += chi2
-            per_angle.append((a,b, Rm, resid, chi2, th, nu, R))
-        return chi2_sum/len(D), per_angle
-
-    left = d0_cm - span_cm; right = d0_cm + span_cm
     N = coarse_N
     best = None
     for _ in range(refine_iters):
         ds = np.linspace(left, right, N)
-        vals = []; intermediates = []
+        vals = []
+        cache = []
         for d in ds:
-            chi2, per = objective(d)
-            vals.append(chi2); intermediates.append((d, per))
+            chi2, a, c_vec, y_lin, resid, Rm = objective(d)
+            vals.append(chi2)
+            cache.append((d, chi2, a, c_vec, y_lin, resid, Rm))
         k = int(np.argmin(vals))
-        d_star, per_star = intermediates[k]
+        d_star, chi2_star, a_star, c_star, ylin_star, resid_star, Rm_star = cache[k]
         # 缩窗
         k0 = max(0, k-5); k1 = min(N-1, k+5)
         left, right = ds[k0], ds[k1]
         N = max(401, N//3)
+        best = (d_star, chi2_star, a_star, c_star, ylin_star, resid_star, Rm_star)
+
+    d_best_cm, chi2, a_best, c_vec_best, yfit, resid, Rm = best
+    rmse = float(np.sqrt(np.mean(resid**2)))
+
+    if verbose:
+        print(f"[单角] θ={theta_deg:.0f}°  d = {d_best_cm*1e4:.6f} μm  χ² = {chi2:.3e}  RMSE = {rmse:.4f}")
+        print(f"       a = {a_best:.3f},  baseline degree = {poly_deg_baseline},  coeffs = {c_vec_best}")
+
+    return {
+        "theta_deg": theta_deg,
+        "d_um": d_best_cm*1e4,           # 已保证为正
+        "a": a_best,
+        "baseline_coeffs": c_vec_best,   # 基线多项式系数（c0,c1,...）
+        "chi2": chi2,
+        "rmse": rmse,
+        "nu": nu,
+        "R_meas": R_meas,
+        "R_model": Rm,
+        "R_fit": yfit,
+        "residual": resid
+    }
+
+def fit_multi_angle(data_list, d0_um, n0=1.0, n1=3.50, n2=2.55,
+                    search_span_um=40.0, coarse_N=1201, refine_iters=3,
+                    poly_deg_each_angle=0,  # ← 新增：每角的基线多项式阶数（0=仅常数）
+                    force_positive_thickness=True, verbose=True):
+    d0_cm = d0_um*1e-4; span_cm = search_span_um*1e-4
+    D = [(np.asarray(nu,float), np.asarray(R,float), float(th)) for (nu,R,th) in data_list]
+
+    def objective(d_cm):
+        chi2_sum = 0.0; per_angle = []
+        for (nu, R, th) in D:
+            Rm = airy_single_layer_reflectance(nu, d_cm, n0, n1, n2, th)
+            # 这里用 nu 当作 x 来拟合二阶基线（如果需要）
+            a, bvec, y_lin = _solve_linear_ab_poly(R, Rm, x=nu, poly_deg=poly_deg_each_angle)
+            resid = R - y_lin
+            chi2 = float(np.mean(resid**2))
+            chi2_sum += chi2
+            per_angle.append((a, bvec, Rm, resid, chi2, th, nu, R, y_lin))
+        return chi2_sum/len(D), per_angle
+
+    # 厚度搜索区间（强制为正）
+    left = max(1e-9, d0_cm - span_cm) if force_positive_thickness else (d0_cm - span_cm)
+    right = max(1e-9, d0_cm + span_cm)
+    N = coarse_N; best = None
+    for _ in range(refine_iters):
+        ds = np.linspace(left, right, N)
+        vals = []; ints = []
+        for d in ds:
+            chi2, per = objective(d); vals.append(chi2); ints.append((d, per))
+        k = int(np.argmin(vals)); d_star, per_star = ints[k]
+        k0 = max(0, k-5); k1 = min(N-1, k+5)
+        left, right = ds[k0], ds[k1]; N = max(401, N//3)
         best = (d_star, per_star, vals[k])
 
-    # 整理输出
-    d_best_cm, per_best, _ = best
-    out = {
-        "d_um": d_best_cm*1e4,
-        "angles": [],
-    }
-    for (a,b,Rm,resid,chi2,th,nu,R) in per_best:
+    d_best_cm, per_best, chi2_joint = best
+    out = {"d_um": d_best_cm*1e4, "chi2_joint": chi2_joint, "angles": []}
+    if verbose:
+        print(f"[联合拟合] d = {out['d_um']:.6f} μm,  χ²_joint = {chi2_joint:.3e}")
+    for (a,bvec,Rm,resid,chi2,th,nu,R,y_lin) in per_best:
+        rmse = float(np.sqrt(np.mean(resid**2)))
+        if verbose:
+            bl = " + ".join([f"c{k}" for k in range(len(bvec))])
+            print(f"  θ={th:.0f}°: a={a:.3f}, 基线项数={len(bvec)}, χ²={chi2:.3e}, RMSE={rmse:.4f}")
         out["angles"].append({
-            "theta_deg": th, "a": float(a), "b": float(b), "chi2": float(chi2),
-            "nu": nu, "R_meas": R, "R_model": Rm, "R_fit": a*Rm + b, "residual": resid
+            "theta_deg": th, "a": float(a), "bvec": bvec, "chi2": float(chi2), "rmse": rmse,
+            "nu": nu, "R_meas": R, "R_model": Rm, "R_fit": y_lin, "residual": resid
         })
     return out
 
@@ -198,7 +235,7 @@ def plot_multiangle_fit(out_joint, out_10=None, out_15=None, title_prefix="单�
 
     # 图3：跨角一致性图（单角 vs 联合）
     if (out_10 is not None) and (out_15 is not None):
-        angles = [out_10["theta_deg"], out_15["theta_deg"]]
+        angles = [10, 15]
         d_single = [out_10["d_um"], out_15["d_um"]]
         plt.figure(figsize=(6.4,4.2))
         plt.scatter(angles, d_single, s=60, label="单角拟合厚度", zorder=3)
@@ -245,7 +282,7 @@ if __name__ == "__main__":
         show_windowed=True,  # 是否同时画“乘窗后”的曲线
     )
     nu_10 = out["nu_uniform"]  # cm^-1，等间距
-    R10_meas = out["y_windowed"]  # 对应反射率/信号
+    R10_meas = out["y_uniform_demean"]  # 对应反射率/信号
 
     df = df4
     include_range: Tuple[float, float] = (1800, 2500)  # 条纹最明显波段
@@ -263,7 +300,7 @@ if __name__ == "__main__":
         show_windowed=True,  # 是否同时画“乘窗后”的曲线
     )
     nu_15 = out["nu_uniform"]
-    R15_meas = out["y_windowed"]
+    R15_meas = out["y_uniform_demean"]
 
     # 2) FFT 主峰得到的厚度初值（μm）
     d0_um = 3.36  # 例如 8.1
@@ -275,7 +312,11 @@ if __name__ == "__main__":
     # 4) 多角联合拟合（核心结论）
     out_joint = fit_multi_angle([(nu_10, R10_meas, 10.0),
                                  (nu_15, R15_meas, 15.0)],
-                                d0_um, n1=3.50, n2=2.55)
+                                d0_um,
+                                n1=3.50, n2=2.55,
+                                poly_deg_each_angle=2,  # ← 每个角度加一个二次基线
+                                force_positive_thickness=True,
+                                verbose=True)
 
     # 5) 中文论文图（自动带上联合厚度）
     plot_multiangle_fit(out_joint, out10, out15,
