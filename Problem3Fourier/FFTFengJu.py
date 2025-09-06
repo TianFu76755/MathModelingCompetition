@@ -1,4 +1,3 @@
-from pprint import pprint
 from typing import Tuple, List
 
 from matplotlib import pyplot as plt
@@ -88,11 +87,12 @@ def fft_analyze_and_plot(
     nu_u, y_w,
     n=3.50, theta_deg=10.0,
     peak_count=5, min_prominence=0.02,
-    figsize=(8,4), title="FFT on Interference (optical thickness domain)"
+    figsize=(8,4), title="FFT on Interference (geometric thickness domain)",
+    xlim_um=(0, 10)   # 横坐标范围，单位 μm，默认 0~10
 ):
     """
     计算 FFT 并绘图：
-      - 横轴：光学厚度 T = 2 n d cos(theta) [cm]
+      - 横轴：几何厚度 d [μm]
       - 纵轴：FFT 幅度（归一化）
       - 自动标注主峰/多峰及其换算厚度
     """
@@ -104,26 +104,29 @@ def fft_analyze_and_plot(
     M = out["magnitude"].astype(float)
     Mn = M / (M.max() + 1e-15)
 
+    cos_th = np.cos(np.deg2rad(theta_deg))
+    d_axis_um = (T / (2*n*cos_th)) * 1e4   # cm → μm
+
     plt.figure(figsize=figsize)
-    plt.plot(T, Mn, lw=1.6, label="FFT幅度（标准化）")
-    plt.xlabel("光学厚度  $T = 2 n d \\cos\\theta$  (cm)")
+    plt.plot(d_axis_um, Mn, lw=1.6, label="FFT幅度（标准化）")
+    plt.xlabel("几何厚度 d (μm)")
     plt.ylabel("幅度 (a.u.)")
-    plt.title(title)
+    # plt.title(title)
     plt.grid(True, alpha=0.3)
+
+    if xlim_um is not None:
+        plt.xlim(*xlim_um)   # 设置横坐标范围
 
     # 标注峰
     if out["peaks"]:
-        cos_th = np.cos(np.deg2rad(theta_deg))
         for p in out["peaks"]:
-            Tcm = p["T_cm"]
             d_um = p["thickness_um"]
             rs   = p["rel_strength"]
-            # 画点
-            plt.scatter([Tcm], [Mn[p["peak_index"]]], s=40)
-            # 注释：厚度（μm）与相对强度
+            idx  = p["peak_index"]
+            plt.scatter([d_um], [Mn[idx]], s=40)
             plt.annotate(
-                f"T={Tcm:.4g} cm\n d={d_um:.3g} μm\n rel={rs:.2f}",
-                xy=(Tcm, Mn[p["peak_index"]]),
+                f"d={d_um:.3g} μm\n rel={rs:.2f}",
+                xy=(d_um, Mn[idx]),
                 xytext=(10, 10),
                 textcoords="offset points",
                 fontsize=9,
@@ -140,6 +143,8 @@ def fft_analyze_and_plot(
     return out
 
 
+
+
 if __name__ == "__main__":
     from Toolkit.ChineseSupport import show_chinese
     show_chinese()
@@ -150,10 +155,10 @@ if __name__ == "__main__":
     df3 = DM.get_data(3)
     df4 = DM.get_data(4)
 
-    df = df1
-    n = 2.55
-    theta_deg = 10.0
-    include_range: Tuple[float, float] = (2000, 2500)  # 条纹最明显波段
+    df = df4
+    n = 3.50
+    theta_deg = 15.0
+    include_range: Tuple[float, float] = (550, 3000)  # 条纹最明显波段
     exclude_ranges: List[Tuple[float, float]] = [(3000, 4000)]  # 强吸收段（可多段）
 
     # ============预处理阶段===========
@@ -177,7 +182,8 @@ if __name__ == "__main__":
         peak_count=5,  # 最多找5个峰
         min_prominence=0.05,  # 只标注强度≥5%的峰
         figsize=(9, 4.5),
-        title=f"FFT (n={n}, theta={theta_deg}°)"
+        title=f"FFT (n={n}, theta={theta_deg}°)",
+        xlim_um=(3, 25)
     )
 
     # 结果结构
