@@ -1,8 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import pandas as pd
 
-from Problem3Fourier.program import EpiFFTWorkflow, PeakPicker
+from Problem3Fourier.UseLess.program import EpiFFTWorkflow, PeakPicker
 
 
 def go_fft_decomposition(df, angle_deg=10.0, k_peaks=3):

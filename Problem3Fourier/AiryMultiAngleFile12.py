@@ -3,7 +3,7 @@ from typing import Tuple, List
 import numpy as np
 
 from Problem3Fourier.AiryMultiAngle import fit_single_angle, fit_multi_angle, plot_multiangle_fit
-from Problem3Fourier.yuchuli_fft_viz import preprocess_and_plot_compare
+from Problem3Fourier.UseLess.yuchuli_fft_viz import preprocess_and_plot_compare
 
 
 def n_SiC_dispersion(wn_cm_inv):

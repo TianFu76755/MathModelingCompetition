@@ -15,7 +15,7 @@ from typing import Tuple, List
 import numpy as np
 import matplotlib.pyplot as plt
 
-from Problem3Fourier.yuchuli_fft_viz import preprocess_and_plot_compare
+from Problem3Fourier.UseLess.yuchuli_fft_viz import preprocess_and_plot_compare
 
 
 def _as_func(n):

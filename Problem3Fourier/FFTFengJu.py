@@ -2,7 +2,7 @@ from typing import Tuple, List
 
 from matplotlib import pyplot as plt
 
-from yuchuli_fft_viz import preprocess_and_plot_compare
+from Problem3Fourier.UseLess.yuchuli_fft_viz import preprocess_and_plot_compare
 
 
 import numpy as np

@@ -306,7 +306,7 @@ if __name__ == "__main__":
     df3 = DM.get_data(3)
     df4 = DM.get_data(4)
 
-    visualize_fft_decomposition(df2, include_range=(1800,3300),
+    visualize_fft_decomposition(df3, include_range=(1800,3300),
                                 exclude_ranges=[(2200,2300)],
                                 k_components=5, show_max_components_in_fig1=5)
     plt.show()
