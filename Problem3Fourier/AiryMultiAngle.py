@@ -348,6 +348,53 @@ def plot_multiangle_fit(
         plt.tight_layout()
         plt.show()
 
+    def plot_consistency_dumbbell_v2(out_joint, singles: dict):
+        """
+        singles: {angle_deg: d_um, ...} 例如 {10: out_10["d_um"], 15: out_15["d_um"]}
+        """
+        import matplotlib.pyplot as plt
+        angles = sorted(singles.keys())
+        y = [0.25, 0.75]  # 给 10° 和 15° 分配的 y 位置
+        d_joint = out_joint["d_um"]
+        d_single = [singles[a] for a in angles]
+
+        plt.figure(figsize=(7.0, 3.8))
+
+        # 连接线（基准 -> 单角）
+        for yi, ds in zip(y, d_single):
+            plt.plot([min(d_joint, ds), max(d_joint, ds)], [yi, yi], lw=2.2, alpha=0.8, zorder=1)
+
+        # 基准点与单角点（横向）
+        plt.scatter([d_joint] * len(y), y, s=120, label="联合厚度", zorder=3)
+        plt.scatter(d_single, y, s=140, edgecolor="k", linewidths=0.6, label="单角厚度", zorder=4)
+
+        # 标注 Δ
+        for yi, ds in zip(y, d_single):
+            delta = ds - d_joint
+            plt.text(ds - 0.004, yi + 0.055, f"Δ={delta:+.3g} μm", fontsize=13, va="center")
+
+        # 设置 x 轴范围紧缩
+        x_all = d_single + [d_joint]
+        x_pad = max(1e-3, 0.003 * max(x_all))
+        plt.xlim(min(x_all) - x_pad, max(x_all) + x_pad)
+
+        # 去掉 y 轴，使用自定义位置
+        plt.yticks(y, [f"{a}°" for a in angles])
+
+        # 强制设置 y 轴的上下限，确保点不会出现在最上面或最下面
+        plt.ylim(min(y) - 0.2, max(y) + 0.2)  # 稍微加一些空间
+
+        plt.xticks(fontsize=10)  # 让 x 轴的字体大小更清晰
+
+        plt.xlabel("厚度 (μm)")
+        plt.title("跨角一致性（哑铃图）：相对联合基准的偏差")
+        plt.grid(True, axis="x", alpha=0.3)
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+    plot_consistency_dumbbell_v2(out_joint, {10: out_10["d_um"], 15: out_15["d_um"]})
+
 
 def n_Si_dispersion(wn_cm_inv):
     """
