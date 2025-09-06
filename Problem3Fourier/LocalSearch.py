@@ -36,7 +36,8 @@ def calculate_d(include_range):
         min_prominence=0.05,  # 只标注强度≥5%的峰
         figsize=(9, 4.5),
         title=f"FFT (n={n}, theta={theta_deg}°)",
-        xlim_um=(3, 25)
+        xlim_um=(3, 25),
+        is_plot=False
     )
 
     # 结果结构
@@ -50,16 +51,29 @@ def calculate_d(include_range):
         raise ValueError("未找到有效的 FFT 峰值，无法计算厚度 d。")
 
 
-def stability_metric(d_new, d_old, stability_threshold=10):
+def stability_metric(d_new, d_old, lower_old, upper_old, lower_new, upper_new, stability_threshold=10):
     """
-    判断扩展后的区间稳定性，如果d值变化大于稳定性阈值，则认为不稳定。
+    判断扩展后的区间稳定性，考虑新旧区间的大小变化关系。如果d值变化大于稳定性阈值，则认为不稳定。
     stability_threshold：稳定性百分比阈值（例如10%）
     """
+    # 计算区间变化的比例
+    old_interval = upper_old - lower_old
+    new_interval = upper_new - lower_new
+    interval_change_percentage = abs(new_interval - old_interval) / old_interval * 100
+
+    # 调整稳定性阈值，基于区间变化的幅度
+    adjusted_stability_threshold = stability_threshold * (1 + interval_change_percentage / 100)
+
+    # 计算d变化的百分比
     stability_percentage = abs(d_new - d_old) / d_old * 100
-    return stability_percentage < stability_threshold
+
+    print(f"旧的d: {d_old}, 新的d: {d_new}, d变化百分比: {stability_percentage:.2f}%, ")
+
+    # 判断稳定性
+    return stability_percentage < adjusted_stability_threshold
 
 
-def local_search_with_expansion(initial_range, step_size=20, stability_threshold=10):
+def local_search_with_expansion(initial_range, step_size_p=20, stability_threshold=10):
     """
     使用局部搜索扩展初始区间，逐步增大区间直到找到稳定的边界。
     逻辑是双边拓展：当一边不稳定时，暂停该边，继续扩展另一边。
@@ -69,7 +83,7 @@ def local_search_with_expansion(initial_range, step_size=20, stability_threshold
     # 计算基准的 d 值
     d_base = calculate_d((lower, upper))  # 假设这里传入nu和y_w数据
     # 小步子精细调整
-    step_size = step_size
+    step_size = step_size_p
     expanding_left = expanding_right = True
 
     while expanding_left or expanding_right:
@@ -77,33 +91,35 @@ def local_search_with_expansion(initial_range, step_size=20, stability_threshold
         if expanding_left:
             new_lower = lower - step_size
             d_left = calculate_d((new_lower, upper))  # 计算新的 d 值
-            left_stable = stability_metric(d_left, d_base, stability_threshold)
+            left_stable = stability_metric(d_left, d_base, lower, upper, new_lower, upper, stability_threshold)
 
             if not left_stable:
                 # 如果左边不稳定，暂停左边扩展
                 expanding_left = False
             else:
                 # 如果左边稳定，继续扩展
+                print(f"左边稳定，继续扩展, 旧下界：{lower} 新下界: {new_lower}")
                 lower = new_lower
 
         # 向右扩展
         if expanding_right:
             new_upper = upper + step_size
             d_right = calculate_d((lower, new_upper))  # 计算新的 d 值
-            right_stable = stability_metric(d_right, d_base, stability_threshold)
+            right_stable = stability_metric(d_right, d_base, lower, upper, lower, new_upper, stability_threshold)
 
             if not right_stable:
                 # 如果右边不稳定，暂停右边扩展
                 expanding_right = False
             else:
                 # 如果右边稳定，继续扩展
+                print(f"右边稳定，继续扩展, 旧下界：{upper} 新下界: {new_upper}")
                 upper = new_upper
 
-        print(f"小步微调: [{lower}, {upper}]")
         # 如果左右两边都不稳定，则停止扩展
         if not expanding_left and not expanding_right:
             # 精细调整步长
             step_size /= 2
+            print(f"两边均不稳定，减小步长为 {step_size}")
             if step_size < 1:
                 break
             expanding_left = True
@@ -126,16 +142,19 @@ if __name__ == "__main__":
     df3 = DM.get_data(3)
     df4 = DM.get_data(4)
 
-    df = df2  # 选择要处理的数据
+    df = df1  # 选择要处理的数据
     n = 2.55
-    theta_deg = 15.0
+    theta_deg = 10.0
+
+    # print(calculate_d((2000, 2400)))
+    # exit(0)
 
     # 初始区间 [2000, 2400]
-    initial_range = (2000, 2500)
+    initial_range = (2000, 2100)
     # 小步子精细调整步长
     step_size = 100
     # 稳定性阈值（例如 10%）
-    stability_threshold = 20
+    stability_threshold = 60
 
     # 执行局部搜索扩展
     best_lower, best_upper = local_search_with_expansion(
