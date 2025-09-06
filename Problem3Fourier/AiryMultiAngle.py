@@ -316,6 +316,29 @@ def plot_multiangle_fit(
     plt.tight_layout()
     plt.show()
 
+    # 图 1.2 Separate plotting for each angle
+    for angle_data, angle_name in zip([out_10, out_15], ['10', '15']):
+        plt.figure(figsize=(9, 4.8))
+
+        if angle_data:
+            nu = angle_data["nu"]
+            Rm = angle_data["R_meas"]
+            yfit = angle_data["R_fit"]
+            th = angle_data["theta_deg"]
+            chi2 = angle_data["chi2"]
+
+            # Plot measured vs fitted data for the specific angle
+            plt.plot(nu, Rm, lw=1.2, label=f"实测  θ={th:.0f}°")
+            plt.plot(nu, yfit, lw=1.6, label=f"拟合 θ={th:.0f}°（$\chi^2$={chi2:.2e}）")
+
+            plt.xlabel("波数 (cm$^{-1}$)")
+            plt.ylabel("反射率 / 信号 (a.u.)")
+            plt.title(f"{title_prefix}：实测 vs 拟合（角度 θ={th:.0f}°）\n联合厚度 d = {out_joint['d_um']:.4g} μm")
+            plt.grid(True, alpha=0.3)
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+
     # 图2：残差（两角）
     plt.figure(figsize=(9,4.2))
     for ang in out_joint["angles"]:
