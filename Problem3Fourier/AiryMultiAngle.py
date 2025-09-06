@@ -351,18 +351,53 @@ def plot_multiangle_fit(
 
 def n_Si_dispersion(wn_cm_inv):
     """
-    硅的实折射率色散（无吸收项）：
+    硅的实折射率色散（无吸收）：
       n^2 = 11.6858 + 0.939816/(λ^2 - 0.0086024) + 0.00089814 * λ^2
-    其中 λ 单位为 μm；输入为 wn(cm^-1)。
-    返回 complex（实数部分为 n，虚部=0）。
+    λ 用 μm；输入 wn 为 cm^-1。
     """
     wn = np.asarray(wn_cm_inv, float)
-    lam_um = 1e4 / wn        # cm^-1 -> μm
+    lam_um = 1e4 / wn
     l2 = lam_um**2
     n2 = 11.6858 + 0.939816/(l2 - 0.0086024) + 0.00089814*l2
-    # 数值健壮性处理（极端波段防负数/NaN）：
     n2 = np.maximum(n2, 1e-12)
-    return np.sqrt(n2) + 0j   # 若有吸收，可改成 n + 1j*k(λ)
+    return np.sqrt(n2) + 0j
+
+
+def n_Si_dispersion_with_k(wn_cm_inv, k0=1e-3, kind="const", ref_um=4.0, p=0.0):
+    """
+    硅的复折射率色散：n(λ) + i*k(λ)
+    - 实部 n(λ) 用上面的经验公式；
+    - 虚部 k(λ) 提供两种简便模型：
+        kind="const"  : k(λ) = k0                  （默认）
+        kind="power"  : k(λ) = k0 * (λ/ref_um)^p   （幂律，可模拟远红外增长/衰减）
+    参  数：
+      wn_cm_inv : 波数(cm^-1)
+      k0        : 常数吸收基准（建议先在 1e-5 ~ 1e-2 扫）
+      kind      : "const" 或 "power"
+      ref_um    : 幂律参考波长（μm），仅当 kind="power" 时使用
+      p         : 幂指数，>0 表示随波长增大而增大
+    返回：
+      n_complex(wn) : 复数折射率（n + 1j*k）
+    """
+    wn = np.asarray(wn_cm_inv, float)
+    lam_um = 1e4 / wn
+
+    # n(λ) 实部
+    l2 = lam_um**2
+    n2 = 11.6858 + 0.939816/(l2 - 0.0086024) + 0.00089814*l2
+    n2 = np.maximum(n2, 1e-12)
+    n_real = np.sqrt(n2)
+
+    # k(λ) 虚部
+    if kind == "power":
+        k = k0 * (lam_um / float(ref_um))**float(p)
+    else:  # "const"
+        k = np.full_like(lam_um, float(k0))
+
+    # 数值安全：非负、小范围保护
+    k = np.clip(k, 0.0, 1.0)
+
+    return n_real + 1j*k
 
 
 # ========================= 演示（用合成/实测数据替换） =========================
@@ -382,7 +417,7 @@ if __name__ == "__main__":
     # 1) 预处理（把这里替换为你的等间距波数 & 去基线/可用于拟合的反射信号）
     # 10°
     df = df3
-    include_range: Tuple[float, float] = (1900, 2700)  # 条纹最明显波段
+    include_range: Tuple[float, float] = (2000, 2700)  # 条纹最明显波段
     exclude_ranges: List[Tuple[float, float]] = [(3000, 4000)]  # 强吸收段（可多段）
     out = preprocess_and_plot_compare(
         df,
@@ -413,17 +448,17 @@ if __name__ == "__main__":
     R15_meas = out["y_uniform_demean"]
 
     # 2) FFT 主峰得到的厚度初值（μm）——请替换为你的估计
-    d0_um = 3.36
+    d0_um = 3.39
 
     # 3) 单角拟合（与多角保持相同的基线阶数！此处统一用二次）
     out10 = fit_single_angle(
         nu_10, R10_meas, d0_um,
-        n1=n_Si_dispersion, n2=2.55, theta_deg=10.0,
+        n1=lambda wn: n_Si_dispersion_with_k(wn, k0=1e-3, kind="const"), n2=3.55, theta_deg=10.0,
         poly_deg_baseline=1, verbose=True
     )
     out15 = fit_single_angle(
         nu_15, R15_meas, d0_um,
-        n1=n_Si_dispersion, n2=2.55, theta_deg=15.0,
+        n1=lambda wn: n_Si_dispersion_with_k(wn, k0=1e-3, kind="const"), n2=3.55, theta_deg=15.0,
         poly_deg_baseline=1, verbose=True
     )
 
@@ -431,11 +466,11 @@ if __name__ == "__main__":
     out_joint = fit_multi_angle(
         [(nu_10, R10_meas, 10.0), (nu_15, R15_meas, 15.0)],
         d0_um,
-        n1=n_Si_dispersion, n2=2.55,
+        n1=lambda wn: n_Si_dispersion_with_k(wn, k0=1e-3, kind="const"), n2=3.55,
         poly_deg_each_angle=1,
         force_positive_thickness=True,
         verbose=True,
-        sample_weighting="mean"   # 或 "size"
+        sample_weighting="mean",   # 或 "size"
     )
 
     # 5) 中文论文图（自动带上联合厚度）
