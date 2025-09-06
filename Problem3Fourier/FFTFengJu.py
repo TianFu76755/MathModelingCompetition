@@ -88,7 +88,8 @@ def fft_analyze_and_plot(
     n=3.50, theta_deg=10.0,
     peak_count=5, min_prominence=0.02,
     figsize=(8,4), title="FFT on Interference (geometric thickness domain)",
-    xlim_um=(0, 10)   # 横坐标范围，单位 μm，默认 0~10
+    xlim_um=(0, 10),   # 横坐标范围，单位 μm，默认 0~10
+    is_plot=True
 ):
     """
     计算 FFT 并绘图：
@@ -107,42 +108,41 @@ def fft_analyze_and_plot(
     cos_th = np.cos(np.deg2rad(theta_deg))
     d_axis_um = (T / (2*n*cos_th)) * 1e4   # cm → μm
 
-    plt.figure(figsize=figsize)
-    plt.plot(d_axis_um, Mn, lw=1.6, label="FFT幅度（标准化）")
-    plt.xlabel("几何厚度 d (μm)")
-    plt.ylabel("幅度 (a.u.)")
-    # plt.title(title)
-    plt.grid(True, alpha=0.3)
+    if is_plot:
+        plt.figure(figsize=figsize)
+        plt.plot(d_axis_um, Mn, lw=1.6, label="FFT幅度（标准化）")
+        plt.xlabel("几何厚度 d (μm)")
+        plt.ylabel("幅度 (a.u.)")
+        # plt.title(title)
+        plt.grid(True, alpha=0.3)
 
-    if xlim_um is not None:
-        plt.xlim(*xlim_um)   # 设置横坐标范围
+        if xlim_um is not None:
+            plt.xlim(*xlim_um)   # 设置横坐标范围
 
-    # 标注峰
-    if out["peaks"]:
-        for p in out["peaks"]:
-            d_um = p["thickness_um"]
-            rs   = p["rel_strength"]
-            idx  = p["peak_index"]
-            plt.scatter([d_um], [Mn[idx]], s=40)
-            plt.annotate(
-                f"d={d_um:.3g} μm\n rel={rs:.2f}",
-                xy=(d_um, Mn[idx]),
-                xytext=(10, 10),
-                textcoords="offset points",
-                fontsize=9,
-                bbox=dict(boxstyle="round,pad=0.25", fc="w", ec="0.3", alpha=0.85),
-                arrowprops=dict(arrowstyle="->", lw=0.8, alpha=0.6)
-            )
-    else:
-        plt.annotate("No clear peaks found\n(check band/dispersion/window)",
-                     xy=(0.02, 0.85), xycoords="axes fraction", fontsize=9,
-                     bbox=dict(boxstyle="round,pad=0.25", fc="w", ec="0.3", alpha=0.85))
-    plt.legend(loc="best")
-    plt.tight_layout()
-    plt.show()
+        # 标注峰
+        if out["peaks"]:
+            for p in out["peaks"]:
+                d_um = p["thickness_um"]
+                rs   = p["rel_strength"]
+                idx  = p["peak_index"]
+                plt.scatter([d_um], [Mn[idx]], s=40)
+                plt.annotate(
+                    f"d={d_um:.3g} μm\n rel={rs:.2f}",
+                    xy=(d_um, Mn[idx]),
+                    xytext=(10, 10),
+                    textcoords="offset points",
+                    fontsize=9,
+                    bbox=dict(boxstyle="round,pad=0.25", fc="w", ec="0.3", alpha=0.85),
+                    arrowprops=dict(arrowstyle="->", lw=0.8, alpha=0.6)
+                )
+        else:
+            plt.annotate("No clear peaks found\n(check band/dispersion/window)",
+                         xy=(0.02, 0.85), xycoords="axes fraction", fontsize=9,
+                         bbox=dict(boxstyle="round,pad=0.25", fc="w", ec="0.3", alpha=0.85))
+        plt.legend(loc="best")
+        plt.tight_layout()
+        plt.show()
     return out
-
-
 
 
 if __name__ == "__main__":
@@ -155,11 +155,11 @@ if __name__ == "__main__":
     df3 = DM.get_data(3)
     df4 = DM.get_data(4)
 
-    df = df4
-    n = 3.50
-    theta_deg = 15.0
-    include_range: Tuple[float, float] = (550, 3000)  # 条纹最明显波段
-    exclude_ranges: List[Tuple[float, float]] = [(3000, 4000)]  # 强吸收段（可多段）
+    df = df1
+    n = 2.50
+    theta_deg = 10.0
+    include_range: Tuple[float, float] = (2000, 2400)  # 条纹最明显波段
+    exclude_ranges: List[Tuple[float, float]] = []  # 强吸收段（可多段）
 
     # ============预处理阶段===========
     out = preprocess_and_plot_compare(

@@ -102,6 +102,17 @@ def preprocess_and_plot_compare(
         plt.tight_layout()
         plt.show()
 
+        # New plot for nu_uniform, y_uniform_demean, y_windowed
+        plt.figure(figsize=(10, 4))
+        plt.plot(nu_u, y_u_dm, label="预处理后（去均值）", color='orange', linewidth=1.5)
+        plt.plot(nu_u, y_w, label="预处理后（加窗）", color='green', linewidth=1.0)
+        plt.xlabel("波数 (cm$^{-1}$)")
+        plt.ylabel("信号 (a.u.)")
+        plt.title("均匀网格 vs 窗口信号")
+        plt.legend(loc="best")
+        plt.tight_layout()
+        plt.show()
+
     return {
         "nu_raw": nu_raw,
         "R_raw": R_raw,
@@ -111,6 +122,7 @@ def preprocess_and_plot_compare(
         "y_uniform_demean": y_u_dm,
         "y_windowed": y_w,
     }
+
 
 if __name__ == "__main__":
     # 中文显示（按你工程）
@@ -137,4 +149,5 @@ if __name__ == "__main__":
             uniform_points=None,
             window_name="tukey",
             show_windowed=True,
+            is_plot=True
         )
