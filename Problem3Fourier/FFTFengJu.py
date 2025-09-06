@@ -153,8 +153,8 @@ if __name__ == "__main__":
     df = df1
     n = 2.55
     theta_deg = 10.0
-    include_range: Tuple[float, float] = (1800, 3300)  # 条纹最明显波段
-    exclude_ranges: List[Tuple[float, float]] = [(1000, 2800)]  # 强吸收段（可多段）
+    include_range: Tuple[float, float] = (2000, 2500)  # 条纹最明显波段
+    exclude_ranges: List[Tuple[float, float]] = [(3000, 4000)]  # 强吸收段（可多段）
 
     # ============预处理阶段===========
     out = preprocess_and_plot_compare(
@@ -191,21 +191,33 @@ if __name__ == "__main__":
     df = df1
     n = 2.55
     theta_deg = 10.0
-    include_range: Tuple[float, float] = (1800, 3300)  # 条纹最明显波段
-    exclude_ranges: List[Tuple[float, float]] = [(1000, 2800)]  # 强吸收段（可多段）
+    include_range: Tuple[float, float] = (2000, 2500)  # 条纹最明显波段
+    exclude_ranges: List[Tuple[float, float]] = [(3000, 4000)]  # 强吸收段（可多段）
 
 附件2：8.12μm
     df = df2
     n = 2.55
     theta_deg = 15.0
-    include_range: Tuple[float, float] = (1800, 3300)  # 条纹最明显波段
-    exclude_ranges: List[Tuple[float, float]] = [(1000, 2800)]  # 强吸收段（可多段）
+    include_range: Tuple[float, float] = (2000, 2500)  # 条纹最明显波段
+    exclude_ranges: List[Tuple[float, float]] = [(3000, 4000)]  # 强吸收段（可多段）
     
 附件3：
-
+[1] T = 0.00244886 cm  |  d = 3.55234 μm  | rel_strength=1.000
+[2] T = 0.00530587 cm  |  d = 7.69674 μm  | rel_strength=0.216
+    df = df3
+    n = 3.50
+    theta_deg = 10.0
+    include_range: Tuple[float, float] = (550, 3000)  # 条纹最明显波段
+    exclude_ranges: List[Tuple[float, float]] = [(3000, 4000)]  # 强吸收段（可多段）
 
 附件4：
-
+[1] T = 0.00244886 cm  |  d = 3.62178 μm  | rel_strength=1.000
+[2] T = 0.00530587 cm  |  d = 7.8472 μm  | rel_strength=0.216
+    df = df4
+    n = 3.50
+    theta_deg = 15.0
+    include_range: Tuple[float, float] = (550, 3000)  # 条纹最明显波段
+    exclude_ranges: List[Tuple[float, float]] = [(3000, 4000)]  # 强吸收段（可多段）
 
 """
 
