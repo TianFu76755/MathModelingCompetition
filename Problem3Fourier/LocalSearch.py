@@ -59,67 +59,55 @@ def stability_metric(d_new, d_old, stability_threshold=10):
     return stability_percentage < stability_threshold
 
 
-def local_search_with_expansion(initial_range, large_step_size=100, small_step_size=20, stability_threshold=10):
+def local_search_with_expansion(initial_range, step_size=20, stability_threshold=10):
     """
     使用局部搜索扩展初始区间，逐步增大区间直到找到稳定的边界。
-    df: 数据
-    initial_range: 初始区间 (lower, upper)
-    large_step_size: 初始阶段扩展的步长
-    small_step_size: 扩展不稳定时的精细步长
-    stability_threshold: 稳定性阈值（百分比）
+    逻辑是双边拓展：当一边不稳定时，暂停该边，继续扩展另一边。
+    只有两边都不稳定时，进入小步微调阶段。
     """
     lower, upper = initial_range
     # 计算基准的 d 值
     d_base = calculate_d((lower, upper))  # 假设这里传入nu和y_w数据
+    # 小步子精细调整
+    step_size = step_size
+    expanding_left = expanding_right = True
 
-    # 第一阶段：大步子扩展
-    expanding = True
-    step_size = large_step_size
-    while expanding:
+    while expanding_left or expanding_right:
         # 向左扩展
-        new_lower = lower - step_size
-        d_left = calculate_d((lower, upper))  # 计算新的 d 值
+        if expanding_left:
+            new_lower = lower - step_size
+            d_left = calculate_d((new_lower, upper))  # 计算新的 d 值
+            left_stable = stability_metric(d_left, d_base, stability_threshold)
+
+            if not left_stable:
+                # 如果左边不稳定，暂停左边扩展
+                expanding_left = False
+            else:
+                # 如果左边稳定，继续扩展
+                lower = new_lower
 
         # 向右扩展
-        new_upper = upper + step_size
-        d_right = calculate_d((lower, upper))  # 计算新的 d 值
+        if expanding_right:
+            new_upper = upper + step_size
+            d_right = calculate_d((lower, new_upper))  # 计算新的 d 值
+            right_stable = stability_metric(d_right, d_base, stability_threshold)
 
-        # 检查稳定性
-        left_stable = stability_metric(d_left, d_base, stability_threshold)
-        right_stable = stability_metric(d_right, d_base, stability_threshold)
+            if not right_stable:
+                # 如果右边不稳定，暂停右边扩展
+                expanding_right = False
+            else:
+                # 如果右边稳定，继续扩展
+                upper = new_upper
 
-        if not left_stable or not right_stable:
-            # 一旦发现不稳定，切换到小步子拓展
-            step_size = small_step_size
-            expanding = False
-        else:
-            # 如果扩展稳定，继续大步拓展
-            lower = new_lower
-            upper = new_upper
-
-    # 第二阶段：小步子精细调整
-    while step_size > 1:
-        # 向左扩展
-        new_lower = lower - step_size
-        d_left = calculate_d((lower, upper))  # 计算新的 d 值
-
-        # 向右扩展
-        new_upper = upper + step_size
-        d_right = calculate_d((lower, upper))  # 计算新的 d 值
-
-        # 检查稳定性
-        left_stable = stability_metric(d_left, d_base, stability_threshold)
-        right_stable = stability_metric(d_right, d_base, stability_threshold)
-
-        if not left_stable or not right_stable:
-            break  # 如果不稳定，停止精细调整
-
-        # 向左和向右扩展都保持稳定，继续调整
-        lower = new_lower
-        upper = new_upper
-
-        # 精细调整步长
-        step_size /= 2
+        print(f"小步微调: [{lower}, {upper}]")
+        # 如果左右两边都不稳定，则停止扩展
+        if not expanding_left and not expanding_right:
+            # 精细调整步长
+            step_size /= 2
+            if step_size < 1:
+                break
+            expanding_left = True
+            expanding_right = True
 
     return lower, upper
 
@@ -138,21 +126,19 @@ if __name__ == "__main__":
     df3 = DM.get_data(3)
     df4 = DM.get_data(4)
 
-    df = df1  # 选择要处理的数据
+    df = df2  # 选择要处理的数据
     n = 2.55
-    theta_deg = 10.0
+    theta_deg = 15.0
 
     # 初始区间 [2000, 2400]
-    initial_range = (2000, 2400)
-    # 大步子拓展步长
-    large_step_size = 50
+    initial_range = (2000, 2500)
     # 小步子精细调整步长
-    small_step_size = 5
+    step_size = 100
     # 稳定性阈值（例如 10%）
-    stability_threshold = 5
+    stability_threshold = 20
 
     # 执行局部搜索扩展
     best_lower, best_upper = local_search_with_expansion(
-        initial_range, large_step_size, small_step_size, stability_threshold)
+        initial_range, step_size, stability_threshold)
 
     print(f"最佳的扩展区间: [{best_lower}, {best_upper}]")
