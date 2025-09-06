@@ -15,7 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # 你的工程里的预处理依赖
-from Problem3Fourier.UseLess.yuchuli_fft_viz import preprocess_and_plot_compare
+from Problem3Fourier.PreprocessAndPlotFunct import preprocess_and_plot_compare
 
 
 # ========================= 基础物理函数 =========================
