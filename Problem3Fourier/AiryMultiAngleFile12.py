@@ -39,7 +39,7 @@ if __name__ == "__main__":
     # 10°
     df = df1
     include_range: Tuple[float, float] = (1800, 2500)  # 条纹最明显波段
-    exclude_ranges: List[Tuple[float, float]] = [(3000, 4000)]  # 强吸收段（可多段）
+    exclude_ranges: List[Tuple[float, float]] = []  # 强吸收段（可多段）
     out = preprocess_and_plot_compare(
         df,
         include_range=include_range,
@@ -93,6 +93,7 @@ if __name__ == "__main__":
         verbose=True,
         sample_weighting="mean",   # 或 "size"
     )
+    print("d: ", {out_joint["d_um"]}, "d10: ", {out10["d_um"]}, "d15: ", {out15["d_um"]})
 
     # 5) 中文论文图（自动带上联合厚度）
     plot_multiangle_fit(out_joint, out10, out15, title_prefix="单层 Airy 多角度联合拟合")

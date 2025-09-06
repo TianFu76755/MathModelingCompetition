@@ -488,7 +488,7 @@ if __name__ == "__main__":
     # 10°
     df = df3
     include_range: Tuple[float, float] = (2000, 2700)  # 条纹最明显波段
-    exclude_ranges: List[Tuple[float, float]] = [(3000, 4000)]  # 强吸收段（可多段）
+    exclude_ranges: List[Tuple[float, float]] = []  # 强吸收段（可多段）
     out = preprocess_and_plot_compare(
         df,
         include_range=include_range,
