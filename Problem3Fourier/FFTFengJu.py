@@ -1,4 +1,5 @@
 from pprint import pprint
+from typing import Tuple, List
 
 from matplotlib import pyplot as plt
 
@@ -118,11 +119,11 @@ def fft_analyze_and_plot(
             d_um = p["thickness_um"]
             rs   = p["rel_strength"]
             # 画点
-            plt.scatter([Tcm], [Mn[p["index"]]], s=40)
+            plt.scatter([Tcm], [Mn[p["peak_index"]]], s=40)
             # 注释：厚度（μm）与相对强度
             plt.annotate(
                 f"T={Tcm:.4g} cm\n d={d_um:.3g} μm\n rel={rs:.2f}",
-                xy=(Tcm, Mn[p["index"]]),
+                xy=(Tcm, Mn[p["peak_index"]]),
                 xytext=(10, 10),
                 textcoords="offset points",
                 fontsize=9,
@@ -135,6 +136,7 @@ def fft_analyze_and_plot(
                      bbox=dict(boxstyle="round,pad=0.25", fc="w", ec="0.3", alpha=0.85))
     plt.legend(loc="best")
     plt.tight_layout()
+    plt.show()
     return out
 
 
@@ -148,14 +150,17 @@ if __name__ == "__main__":
     df3 = DM.get_data(3)
     df4 = DM.get_data(4)
 
-    df = df3
-    n = 3.50
-    theta_deg = 15.0
+    df = df1
+    n = 2.55
+    theta_deg = 10.0
+    include_range: Tuple[float, float] = (1800, 3300)  # 条纹最明显波段
+    exclude_ranges: List[Tuple[float, float]] = [(1000, 2800)]  # 强吸收段（可多段）
 
+    # ============预处理阶段===========
     out = preprocess_and_plot_compare(
         df,
-        include_range=(500, 3300),     # 条纹最明显波段
-        exclude_ranges=[(1000, 2000)],   # 强吸收段（可多段）
+        include_range=include_range,     # 条纹最明显波段
+        exclude_ranges=exclude_ranges,   # 强吸收段（可多段）
         tukey_alpha=0.5,                # Tukey 窗参数；设 0 关闭
         baseline_poly_deg=3,            # 基线多项式阶数
         uniform_points=None,            # 等间距采样点数（默认跟随数据）
@@ -164,41 +169,43 @@ if __name__ == "__main__":
     )
     nu_u = out["nu_uniform"]
     y_w = out["y_windowed"]
-    out = fft_peaks_and_thickness(nu_u, y_w, n=n, theta_deg=theta_deg, peak_count=10)
-    pprint(out["peaks"])
+
+    # ============FFT 分析阶段===========
+    out = fft_analyze_and_plot(
+        nu_u, y_w,
+        n=n, theta_deg=theta_deg,
+        peak_count=5,  # 最多找5个峰
+        min_prominence=0.05,  # 只标注强度≥5%的峰
+        figsize=(9, 4.5),
+        title=f"FFT (n={n}, theta={theta_deg}°)"
+    )
+
+    # 结果结构
+    for i, p in enumerate(out["peaks"], 1):
+        print(f"[{i}] T = {p['T_cm']:.6g} cm  |  d = {p['thickness_um']:.6g} μm  "
+              f"| rel_strength={p['rel_strength']:.3f}")
 
 
 """
-附件2：8.12μm
-out = preprocess_and_plot_compare(
-        df2,
-        include_range=(1800, 3300),     # 条纹最明显波段
-        exclude_ranges=[(1000, 2800)],   # 强吸收段（可多段）
-        tukey_alpha=0.5,                # Tukey 窗参数；设 0 关闭
-        baseline_poly_deg=3,            # 基线多项式阶数
-        uniform_points=None,            # 等间距采样点数（默认跟随数据）
-        window_name="tukey",            # "tukey" / "hann" / "rect"
-        show_windowed=True,             # 是否同时画“乘窗后”的曲线
-    )
-    nu_u = out["nu_uniform"]
-    y_w = out["y_windowed"]
-    out = fft_peaks_and_thickness(nu_u, y_w, n=2.55, theta_deg=15.0, peak_count=5)
-    pprint(out["peaks"])
-    
 附件1：7.96μm
-out = preprocess_and_plot_compare(
-        df1,
-        include_range=(1800, 3300),     # 条纹最明显波段
-        exclude_ranges=[(1000, 2800)],   # 强吸收段（可多段）
-        tukey_alpha=0.5,                # Tukey 窗参数；设 0 关闭
-        baseline_poly_deg=3,            # 基线多项式阶数
-        uniform_points=None,            # 等间距采样点数（默认跟随数据）
-        window_name="tukey",            # "tukey" / "hann" / "rect"
-        show_windowed=True,             # 是否同时画“乘窗后”的曲线
-    )
-    nu_u = out["nu_uniform"]
-    y_w = out["y_windowed"]
-    out = fft_peaks_and_thickness(nu_u, y_w, n=2.55, theta_deg=10.0, peak_count=5)
-    pprint(out["peaks"])
+    df = df1
+    n = 2.55
+    theta_deg = 10.0
+    include_range: Tuple[float, float] = (1800, 3300)  # 条纹最明显波段
+    exclude_ranges: List[Tuple[float, float]] = [(1000, 2800)]  # 强吸收段（可多段）
+
+附件2：8.12μm
+    df = df2
+    n = 2.55
+    theta_deg = 15.0
+    include_range: Tuple[float, float] = (1800, 3300)  # 条纹最明显波段
+    exclude_ranges: List[Tuple[float, float]] = [(1000, 2800)]  # 强吸收段（可多段）
+    
+附件3：
+
+
+附件4：
+
+
 """
 
