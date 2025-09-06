@@ -105,9 +105,9 @@ def fft_analyze_and_plot(
     Mn = M / (M.max() + 1e-15)
 
     plt.figure(figsize=figsize)
-    plt.plot(T, Mn, lw=1.6, label="FFT magnitude (normalized)")
-    plt.xlabel("Optical thickness  $T = 2 n d \\cos\\theta$  (cm)")
-    plt.ylabel("Magnitude (a.u.)")
+    plt.plot(T, Mn, lw=1.6, label="FFT幅度（标准化）")
+    plt.xlabel("光学厚度  $T = 2 n d \\cos\\theta$  (cm)")
+    plt.ylabel("幅度 (a.u.)")
     plt.title(title)
     plt.grid(True, alpha=0.3)
 
