@@ -13,6 +13,7 @@ def preprocess_and_plot_compare(
     uniform_points: Optional[int] = None,
     window_name: str = "tukey",
     show_windowed: bool = True,
+    is_plot: bool = False
 ):
     """
     Explain and visualize preprocessing steps by plotting:
@@ -85,20 +86,21 @@ def preprocess_and_plot_compare(
     y_w = y_u_dm * w
 
     # 6) plot comparison
-    import matplotlib.pyplot as plt
-    plt.figure(figsize=(10,4))
-    plt.plot(nu_raw, R_raw, label="原始 (原坐标)", linewidth=1.2)
-    # map preprocessed back to raw axis for visual comparison (optional)
-    # Here we just plot on its own uniform axis
-    plt.plot(nu_u, y_u_dm, label="预处理后（去基线+等间距+去均值）", linewidth=1.5)
-    if show_windowed:
-        plt.plot(nu_u, y_w, label="预处理后（再乘窗）", linewidth=1.0)
-    plt.xlabel("波数 (cm$^{-1}$)")
-    plt.ylabel("信号 (a.u.)")
-    plt.title("原始信号 vs 预处理结果")
-    plt.legend(loc="best")
-    plt.tight_layout()
-    plt.show()
+    if is_plot:
+        import matplotlib.pyplot as plt
+        plt.figure(figsize=(10,4))
+        plt.plot(nu_raw, R_raw, label="原始 (原坐标)", linewidth=1.2)
+        # map preprocessed back to raw axis for visual comparison (optional)
+        # Here we just plot on its own uniform axis
+        plt.plot(nu_u, y_u_dm, label="预处理后（去基线+等间距+去均值）", linewidth=1.5)
+        if show_windowed:
+            plt.plot(nu_u, y_w, label="预处理后（再乘窗）", linewidth=1.0)
+        plt.xlabel("波数 (cm$^{-1}$)")
+        plt.ylabel("信号 (a.u.)")
+        plt.title("原始信号 vs 预处理结果")
+        plt.legend(loc="best")
+        plt.tight_layout()
+        plt.show()
 
     return {
         "nu_raw": nu_raw,

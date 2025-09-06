@@ -49,6 +49,7 @@ if __name__ == "__main__":
         uniform_points=None,
         window_name="tukey",
         show_windowed=True,
+        is_plot=True,
     )
     nu_10 = out["nu_uniform"]                 # cm^-1，等间距
     R10_meas = out["y_uniform_demean"]        # 对应反射率/信号（已去均值或基线）
@@ -64,6 +65,7 @@ if __name__ == "__main__":
         uniform_points=None,
         window_name="tukey",
         show_windowed=True,
+        is_plot=True,
     )
     nu_15 = out["nu_uniform"]
     R15_meas = out["y_uniform_demean"]
