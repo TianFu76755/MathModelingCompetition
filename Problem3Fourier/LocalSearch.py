@@ -26,7 +26,7 @@ def calculate_d(include_range):
         show_windowed=True,  # 是否同时画“乘窗后”的曲线
     )
     nu_u = out["nu_uniform"]
-    y_w = out["y_windowed"]
+    y_u = out["y_uniform_demean"]
 
     # ============FFT 分析阶段===========
     out = fft_analyze_and_plot(

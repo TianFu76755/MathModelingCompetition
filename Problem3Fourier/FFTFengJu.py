@@ -158,7 +158,7 @@ if __name__ == "__main__":
     df = df1
     n = 2.50
     theta_deg = 10.0
-    include_range: Tuple[float, float] = (2000, 2400)  # 条纹最明显波段
+    include_range: Tuple[float, float] = (1800, 2400)  # 条纹最明显波段
     exclude_ranges: List[Tuple[float, float]] = []  # 强吸收段（可多段）
 
     # ============预处理阶段===========

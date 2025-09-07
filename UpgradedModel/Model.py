@@ -21,10 +21,11 @@ from typing import Dict, Any, Optional, Tuple, List
 import numpy as np
 import pandas as pd
 
-from scipy.signal import savgol_filter
 from scipy.fft import rfft, rfftfreq
 from scipy.optimize import least_squares
 import matplotlib.pyplot as plt
+
+from Problem3Fourier.PreprocessAndPlotFunct import preprocess_and_plot_compare
 
 # =========================================================
 # 0) 通用工具 & 物理函数
@@ -75,78 +76,48 @@ class PreprocessConfig:
     sg_polyorder: int = 2
     normalize: bool = True        # 仅用于 FFT；拟合建议 False（或用 detrended）
     include_range: Optional[Tuple[float, float]] = None  # 新增：选择波段范围
+    exclude_ranges: Optional[List[Tuple[float, float]]] = None  # 新增：排除的波段范围
+    tukey_alpha: float = 0.5  # Tukey窗的参数
+    baseline_poly_deg: int = 3  # 基线去除时多项式的阶数
+    uniform_points: Optional[int] = None  # 用于网格化的点数
+    window_name: str = "tukey"  # 窗口类型
 
 
 class SpectrumPreprocessor:
     """
     将 (ν[cm^-1], R[%]) → 等间隔 ν 栅格，并进行温和去趋势。
+    使用新的预处理函数 preprocess_and_plot_compare
     """
     def __init__(self, cfg: Optional[PreprocessConfig] = None):
         self.cfg: PreprocessConfig = cfg or PreprocessConfig()
 
-    def _to_uniform_grid(self, nu: np.ndarray, R: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        idx = np.argsort(nu)
-        nu = nu[idx]
-        R = R[idx]
-
-        dnu = np.mean(np.diff(nu))
-        if not np.isfinite(dnu) or dnu <= 0:
-            return nu, R
-
-        nu_grid = np.arange(nu[0], nu[-1] + 0.5 * dnu, dnu)
-        R_grid = np.interp(nu_grid, nu, R)
-        return nu_grid, R_grid
-
-    def _detrend(self, y: np.ndarray) -> np.ndarray:
-        if not self.cfg.detrend:
-            return y.copy()
-        n = len(y)
-        if n < 11:
-            return y - float(np.nanmean(y))
-        w = max(5, int(round(self.cfg.sg_window_frac * n)))
-        if w % 2 == 0:
-            w += 1
-        # 保证 window_length 合法且 > polyorder
-        w = min(w, n - 1 if (n - 1) % 2 == 1 else n - 2)
-        w = max(w, self.cfg.sg_polyorder + 3)
-        baseline = savgol_filter(y, window_length=w, polyorder=self.cfg.sg_polyorder, mode='interp')
-        return y - baseline
-
-    def _normalize(self, y: np.ndarray) -> np.ndarray:
-        if not self.cfg.normalize:
-            return y
-        y0 = y - float(np.mean(y))
-        rms = math.sqrt(float(np.mean(y0 ** 2))) if len(y0) > 0 else 0.0
-        return y0 / (rms + EPS) if rms > 0 else y0
-
     def run(self, df: pd.DataFrame) -> Dict[str, Any]:
-        col_nu = "波数 (cm-1)"
-        col_R = "反射率 (%)"
-        if col_nu not in df.columns or col_R not in df.columns:
-            col_nu, col_R = df.columns[:2]
-
-        nu = df[col_nu].to_numpy(dtype=float)
-        R_percent = df[col_R].to_numpy(dtype=float)
-        R = R_percent / 100.0
-
-        # 应用 include_range 来选择波段
-        if self.cfg.include_range:
-            lo, hi = self.cfg.include_range
-            mask = (nu >= lo) & (nu <= hi)
-            nu = nu[mask]
-            R = R[mask]
-
-        nu_grid, R_grid = self._to_uniform_grid(nu, R)
-        R_detrended = self._detrend(R_grid)
-        R_proc = self._normalize(R_detrended)
-
-        return dict(
-            nu_grid=nu_grid,
-            R_grid=R_grid,
-            R_detrended=R_detrended,
-            R_proc=R_proc,
+        """
+        执行预处理，包括波数选择、去基线、去均值、归一化等。
+        """
+        # 调用新的预处理函数进行处理
+        result = preprocess_and_plot_compare(
+            df,
+            include_range=self.cfg.include_range,
+            exclude_ranges=self.cfg.exclude_ranges,
+            tukey_alpha=self.cfg.tukey_alpha,
+            baseline_poly_deg=self.cfg.baseline_poly_deg,
+            uniform_points=self.cfg.uniform_points,
+            window_name=self.cfg.window_name,
+            show_windowed=True,  # 默认显示窗口信号
+            is_plot=False  # 不绘制图形，只处理数据
         )
 
+        # 获取处理后的数据
+        nu_uniform = result["nu_uniform"]
+        y_uniform_demean = result["y_uniform_demean"]
+        y_windowed = result["y_windowed"]
+
+        return dict(
+            nu_uniform=nu_uniform,
+            y_uniform_demean=y_uniform_demean,
+            y_windowed=y_windowed,
+        )
 
 # =========================================================
 # 2) 折射率模型（弱色散）
@@ -727,11 +698,9 @@ class JointTwoBeamFitter:
 
 def run_dual_angle_fit(df1: pd.DataFrame, df2: pd.DataFrame,
                        theta1_deg: float = 10.0, theta2_deg: float = 15.0,
-                       n_kind: str = "cauchy",
-                       n0_init: float = 2.65, B_init: float = 0.0,
-                       pre_cfg: Optional[PreprocessConfig] = None,
-                       fit_signal: str = "detrended",
-                       loss: str = "linear",
+                       n_kind: str = "cauchy", n0_init: float = 2.65,
+                       B_init: float = 0.0, pre_cfg: Optional[PreprocessConfig] = None,
+                       fit_signal: str = "detrended", loss: str = "linear",
                        do_bootstrap: bool = False, n_boot: int = 200) -> Dict[str, Any]:
     """
     双角（推荐）的一键流程。返回结果 dict，附带可读的 summary。
@@ -741,12 +710,30 @@ def run_dual_angle_fit(df1: pd.DataFrame, df2: pd.DataFrame,
     fitter = JointTwoBeamFitter(NModel(kind=n_kind, params=np.array([n0_init, B_init] if n_kind=="cauchy" else [n0_init])),
                                 [theta1_deg, theta2_deg], pre_cfg, fit_cfg)
 
-    res = fitter.fit([df1, df2], n0_init=n0_init, B_init=B_init)
+    # 使用新的预处理函数
+    preprocessor = SpectrumPreprocessor(pre_cfg)
+    res1 = preprocessor.run(df1)
+    res2 = preprocessor.run(df2)
+
+    # 提取预处理后的数据
+    nu1_uniform, y1_uniform_demean, y1_windowed = res1["nu_uniform"], res1["y_uniform_demean"], res1["y_windowed"]
+    nu2_uniform, y2_uniform_demean, y2_windowed = res2["nu_uniform"], res2["y_uniform_demean"], res2["y_windowed"]
+
+    df1_proc = pd.DataFrame({
+        "波数 (cm-1)": nu1_uniform,
+        "反射率 (%)": y1_uniform_demean
+    })
+    df2_proc = pd.DataFrame({
+        "波数 (cm-1)": nu2_uniform,
+        "反射率 (%)": y2_uniform_demean
+    })
+    # 将预处理后的数据传入拟合器
+    res = fitter.fit([df1_proc, df2_proc], n0_init=n0_init, B_init=B_init)
 
     # 可靠性辅助：自举
     boot = None
     if do_bootstrap:
-        boot = fitter.bootstrap_ci([df1, df2], n_boot=n_boot)
+        boot = fitter.bootstrap_ci([df1_proc, df2_proc], n_boot=n_boot)
         res["bootstrap"] = boot
 
     # 可读化摘要
@@ -757,16 +744,11 @@ def run_dual_angle_fit(df1: pd.DataFrame, df2: pd.DataFrame,
     else:
         s.append(f"常数折射率 n0 = {res['n0']:.5f}")
     s.append(f"联合拟合 RMSE = {res['rmse']:.4g}；主峰清晰度/角 = {['%.2f'%x for x in res['clarity_list']]}")
-    if "diagnostics" in res:
-        d_single = res["diagnostics"]["single_angle_d_um"]
-        spread = res["diagnostics"]["cross_angle_rel_spread"]
-        s.append(f"单角厚度 d(10°)={d_single[0]:.4f} μm, d(15°)={d_single[1]:.4f} μm；跨角相对散布={spread*100:.2f}%")
-    if boot and boot.get("success"):
-        s.append(f"Bootstrap({boot['n']}次)：均值={boot['mean']:.4f}, std={boot['std']:.4f}, 5%-95%区间=[{boot['q05']:.4f}, {boot['q95']:.4f}] μm")
 
     res["summary"] = "；".join(s)
     res["fitter"] = fitter  # 方便外部直接调用作图
     return res
+
 
 
 # =========================================================
@@ -789,7 +771,7 @@ if __name__ == "__main__":
         n0_init=2.60, B_init=0.0,
         pre_cfg=PreprocessConfig(
             detrend=True, sg_window_frac=0.15, sg_polyorder=2, normalize=True,
-            include_range=(1800.0, 3000.0)
+            include_range=(1900.0, 2900.0)
         ),
         fit_signal="detrended",
         loss="cauchy",
