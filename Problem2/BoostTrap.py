@@ -32,6 +32,8 @@ def bootstrap_resampling(nu1: np.ndarray, y1: np.ndarray, nu2: np.ndarray, y2: n
     d_vals = np.array(d_vals)
     n0_vals = np.array(n0_vals)
 
+    print(f"d_means: {np.mean(d_vals):.4f} μm, d_std: {np.std(d_vals):.4f} μm")
+    print(f"d_5%: {np.percentile(d_vals, 5):.4f} μm, d_95%: {np.percentile(d_vals, 95):.4f} μm")
     # 返回包含参数均值、标准差及分位数的结果
     return {
         "d_vals": d_vals,  # 返回厚度的所有重抽样结果
@@ -86,7 +88,6 @@ def clean_outliers(data: np.ndarray, rule="iqr", center="median", k=1.5, hard_ca
     return {"clean": clean_data, "bounds": bounds, "rule_used": rule}
 
 
-# 6. 绘制Bootstrap结果
 def plot_bootstrap_results(bootstrap_results: Dict[str, Any]):
     """绘制Bootstrap结果的分布图"""
     fig, axes = plt.subplots(1, 2, figsize=(12, 6))
@@ -96,22 +97,32 @@ def plot_bootstrap_results(bootstrap_results: Dict[str, Any]):
     xc = cleaned["clean"]
     lo, hi = cleaned["bounds"]
 
-    # 绘制厚度 d 的分布
-    axes[0].hist(bootstrap_results["d_vals"], bins=30, color='skyblue', edgecolor='black', alpha=0.7)
-    axes[0].axvline(bootstrap_results["d_mean"], color='red', linestyle='dashed', linewidth=2, label=f'Mean: {bootstrap_results["d_mean"]:.4f}')
-    axes[0].axvline(bootstrap_results["d_q05"], color='green', linestyle='dashed', linewidth=2, label=f'5th Percentile: {bootstrap_results["d_q05"]:.4f}')
-    axes[0].axvline(bootstrap_results["d_q95"], color='green', linestyle='dashed', linewidth=2, label=f'95th Percentile: {bootstrap_results["d_q95"]:.4f}')
-    axes[0].set_xlabel('Thickness (μm)')
-    axes[0].set_ylabel('Frequency')
-    axes[0].set_title('Bootstrap Distribution of Thickness (d)')
-    axes[0].legend()
+    # Zoom-in 直方图（只看主体）
+    zmin, zmax = lo, hi
+    if not np.isfinite(zmin) or not np.isfinite(zmax) or zmin >= zmax:
+        zmin, zmax = np.min(bootstrap_results["d_vals"]), np.max(bootstrap_results["d_vals"])
 
-    # 绘制清洗后数据的小提琴图 + 箱线图
-    axes[1].violinplot([xc], showmeans=True, showextrema=True)
-    axes[1].boxplot([xc], widths=0.2, positions=[1.0])
-    axes[1].set_xticks([1]); axes[1].set_xticklabels(["clean d"])
-    axes[1].set_title("BoostTrap分布（小提琴+箱形图）")
-    axes[1].grid(alpha=0.3)
+    ax = axes[0]
+    # 只对 zoom 范围内的数据画直方图
+    x_zoom = bootstrap_results["d_vals"][(bootstrap_results["d_vals"] >= zmin) & (bootstrap_results["d_vals"] <= zmax)]
+    ax.hist(x_zoom, bins=30, color='skyblue', edgecolor='black', alpha=0.7)
+    ax.axvline(bootstrap_results["d_mean"], linestyle='--', label=f"base={bootstrap_results['d_mean']:.3f}")
+    ax.axvline(bootstrap_results["d_q05"], linestyle='-.', lw=1.0, label=f"q05={bootstrap_results['d_q05']:.3f}")
+    ax.axvline(bootstrap_results["d_q95"], linestyle='-.', lw=1.0, label=f"q95={bootstrap_results['d_q95']:.3f}")
+    ax.set_xlim(zmin, zmax)
+    ax.set_xlabel("Thickness (μm)")
+    ax.set_ylabel("Frequency")
+    ax.set_title("Bootstrap Distribution (Zoom-in)")
+    ax.legend(fontsize=8)
+    ax.grid(alpha=0.3)
+
+    # 绘制清洗后数据的小提琴图（去除异常值的圆圈）
+    ax2 = axes[1]
+    ax2.violinplot([xc], showmeans=True, showextrema=True, showmedians=True)
+    ax2.boxplot([xc], widths=0.2, positions=[1.0])
+    ax2.set_xticks([1]); ax2.set_xticklabels(["Cleaned d"])
+    ax2.set_title("Bootstrap Distribution (Violin + Boxplot)")
+    ax2.grid(alpha=0.3)
 
     supt = (f"Raw: mean={bootstrap_results['d_mean']:.4f}, std={bootstrap_results['d_std']:.4f}, "
             f"[5%,95%]=[{bootstrap_results['d_q05']:.4f},{bootstrap_results['d_q95']:.4f}] μm | "
@@ -132,13 +143,13 @@ if __name__ == "__main__":
 
     # ==============两个单角度拟合==============
     # 预处理数据
-    result1 = preprocess_and_plot_compare(df1, include_range=(2060, 2280), is_plot=True)
+    result1 = preprocess_and_plot_compare(df1, include_range=(2060, 2280), is_plot=True)  # TODO
     # 获取处理后的数据
     nu1_uniform = result1["nu_uniform"]
     y1_uniform_demean = result1["y_uniform_demean"]
 
     # 预处理数据
-    result2 = preprocess_and_plot_compare(df2, include_range=(2060, 2280), is_plot=True)
+    result2 = preprocess_and_plot_compare(df2, include_range=(2060, 2280), is_plot=True)  # TODO
     # 获取处理后的数据
     nu2_uniform = result2["nu_uniform"]
     y2_uniform_demean = result2["y_uniform_demean"]
