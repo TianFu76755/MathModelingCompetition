@@ -64,8 +64,8 @@ def plot_fit_results(nu: np.ndarray, y: np.ndarray, fit_result: Dict[str, Any]):
     plt.plot(nu, y, label="原始数据", color="black", linewidth=1.5)
     plt.plot(nu, R_fit, label="拟合曲线", linestyle="--", color="red", linewidth=2.0)
     plt.xlabel("波数 (cm$^{-1}$)")
-    plt.ylabel("信号 (a.u.)")
-    plt.title(f"拟合结果 (d={d_um:.4f} μm, n0={n0:.4f})")
+    plt.ylabel("反射率")
+    plt.title(f"拟合结果 (d={d_um:.4f} μm)")  # , n0={n0:.4f}
     plt.legend(loc="best")
     plt.tight_layout()
     plt.show()
@@ -125,8 +125,8 @@ def plot_dual_angle_fit(nu1: np.ndarray, y1: np.ndarray, nu2: np.ndarray, y2: np
     plt.plot(nu1, y1, label="原始数据 (10°)", color="black")
     plt.plot(nu1, R1_fit, label="拟合曲线", linestyle="--", color="red")
     plt.xlabel("波数 (cm$^{-1}$)")
-    plt.ylabel("信号 (a.u.)")
-    plt.title(f"拟合结果 10° (d={d_um:.4f} μm, n0={n0:.4f})")
+    plt.ylabel("反射率")
+    plt.title(f"拟合结果 10° (d={d_um:.4f} μm)") # , n0={n0:.4f}
     plt.legend(loc="best")
 
     # 绘制第二个角度的拟合结果
@@ -134,8 +134,34 @@ def plot_dual_angle_fit(nu1: np.ndarray, y1: np.ndarray, nu2: np.ndarray, y2: np
     plt.plot(nu2, y2, label="原始数据 (15°)", color="black")
     plt.plot(nu2, R2_fit, label="拟合曲线", linestyle="--", color="red")
     plt.xlabel("波数 (cm$^{-1}$)")
-    plt.ylabel("信号 (a.u.)")
-    plt.title(f"拟合结果 15° (d={d_um:.4f} μm, n0={n0:.4f})")
+    plt.ylabel("反射率")
+    plt.title(f"拟合结果 15° (d={d_um:.4f} μm)") # , n0={n0:.4f}
+    plt.legend(loc="best")
+
+    plt.tight_layout()
+    plt.show()
+
+    # 绘制残差图
+    plt.figure(figsize=(10, 6))
+
+    # 绘制第一个角度的残差图
+    residuals1 = y1 - R1_fit
+    plt.subplot(211)
+    plt.plot(nu1, residuals1, label="残差 (10°)", color="blue")
+    plt.axhline(0, color="black", linestyle="--")
+    plt.xlabel("波数 (cm$^{-1}$)")
+    plt.ylabel("残差 (a.u.)")
+    plt.title("残差 10°")
+    plt.legend(loc="best")
+
+    # 绘制第二个角度的残差图
+    residuals2 = y2 - R2_fit
+    plt.subplot(212)
+    plt.plot(nu2, residuals2, label="残差 (15°)", color="blue")
+    plt.axhline(0, color="black", linestyle="--")
+    plt.xlabel("波数 (cm$^{-1}$)")
+    plt.ylabel("残差 (a.u.)")
+    plt.title("残差 15°")
     plt.legend(loc="best")
 
     plt.tight_layout()
@@ -151,9 +177,11 @@ if __name__ == "__main__":
     df1 = DM.get_data(1)
     df2 = DM.get_data(2)
 
+    qvjian = (2058, 2284)  # 条纹明显波段
+
     # ==============两个单角度拟合==============
     # 预处理数据
-    result1 = preprocess_and_plot_compare(df1, include_range=(2060, 2280), is_plot=True)
+    result1 = preprocess_and_plot_compare(df1, include_range=qvjian, is_plot=True)
     # 获取处理后的数据
     nu1_uniform = result1["nu_uniform"]
     y1_uniform_demean = result1["y_uniform_demean"]
@@ -165,7 +193,7 @@ if __name__ == "__main__":
     plot_fit_results(nu1_uniform, y1_uniform_demean, fit_result1)
 
     # 预处理数据
-    result2 = preprocess_and_plot_compare(df2, include_range=(2060, 2280), is_plot=True)
+    result2 = preprocess_and_plot_compare(df2, include_range=qvjian, is_plot=True)
     # 获取处理后的数据
     nu2_uniform = result2["nu_uniform"]
     y2_uniform_demean = result2["y_uniform_demean"]

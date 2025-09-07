@@ -310,8 +310,8 @@ def plot_multiangle_fit(
         plt.plot(nu, Rm, lw=1.2, label=f"实测  θ={th:.0f}°")
         plt.plot(nu, yfit, lw=1.6, label=f"拟合 θ={th:.0f}°（$\chi^2$={chi2:.2e}）")
     plt.xlabel("波数 (cm$^{-1}$)")
-    plt.ylabel("反射率 / 信号 (a.u.)")
-    plt.title(f"{title_prefix}：实测 vs 拟合（各角度）\n联合厚度 d = {out_joint['d_um']:.4g} μm")
+    plt.ylabel("反射率")
+    plt.title(f"多角度联合拟合，厚度 d = {out_joint['d_um']:.4g} μm")
     plt.grid(True, alpha=0.3); plt.legend()
     plt.tight_layout()
     plt.show()
@@ -332,8 +332,8 @@ def plot_multiangle_fit(
             plt.plot(nu, yfit, lw=1.6, label=f"拟合 θ={th:.0f}°（$\chi^2$={chi2:.2e}）")
 
             plt.xlabel("波数 (cm$^{-1}$)")
-            plt.ylabel("反射率 / 信号 (a.u.)")
-            plt.title(f"{title_prefix}：实测 vs 拟合（角度 θ={th:.0f}°）\n联合厚度 d = {out_joint['d_um']:.4g} μm")
+            plt.ylabel("反射率")
+            plt.title(f"厚度 d = {angle_data['d_um']:.4g} μm，角度 θ={th:.0f}")
             plt.grid(True, alpha=0.3)
             plt.legend()
             plt.tight_layout()
@@ -418,6 +418,40 @@ def plot_multiangle_fit(
 
     plot_consistency_dumbbell_v2(out_joint, {10: out_10["d_um"], 15: out_15["d_um"]})
 
+    # 新增：角1联合拟合结果
+    plt.figure(figsize=(9, 4.8))
+    nu = out_joint["angles"][0]["nu"]
+    Rm = out_joint["angles"][0]["R_meas"]
+    yfit = out_joint["angles"][0]["R_fit"]
+    th = out_joint["angles"][0]["theta_deg"]
+    chi2 = out_joint["angles"][0]["chi2"]
+    plt.plot(nu, Rm, lw=1.2, label=f"实测  θ={th:.0f}°")
+    plt.plot(nu, yfit, lw=1.6, label=f"拟合 θ={th:.0f}°（$\chi^2$={chi2:.2e}）")
+    plt.xlabel("波数 (cm$^{-1}$)")
+    plt.ylabel("反射率")
+    plt.title(f"联合拟合结果：角度 θ={th:.0f}，厚度 d = {out_joint['d_um']:.4g} μm")
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    # 新增：角2联合拟合结果
+    plt.figure(figsize=(9, 4.8))
+    nu = out_joint["angles"][1]["nu"]
+    Rm = out_joint["angles"][1]["R_meas"]
+    yfit = out_joint["angles"][1]["R_fit"]
+    th = out_joint["angles"][1]["theta_deg"]
+    chi2 = out_joint["angles"][1]["chi2"]
+    plt.plot(nu, Rm, lw=1.2, label=f"实测  θ={th:.0f}°")
+    plt.plot(nu, yfit, lw=1.6, label=f"拟合 θ={th:.0f}°（$\chi^2$={chi2:.2e}）")
+    plt.xlabel("波数 (cm$^{-1}$)")
+    plt.ylabel("反射率")
+    plt.title(f"联合拟合结果：角度 θ={th:.0f}，厚度 d = {out_joint['d_um']:.4g} μm")
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
 
 def n_Si_dispersion(wn_cm_inv):
     """
@@ -487,7 +521,7 @@ if __name__ == "__main__":
     # 1) 预处理（把这里替换为你的等间距波数 & 去基线/可用于拟合的反射信号）
     # 10°
     df = df3
-    include_range: Tuple[float, float] = (2000, 2700)  # 条纹最明显波段
+    include_range: Tuple[float, float] = (2032, 2721)  # 条纹最明显波段
     exclude_ranges: List[Tuple[float, float]] = []  # 强吸收段（可多段）
     out = preprocess_and_plot_compare(
         df,

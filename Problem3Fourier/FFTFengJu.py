@@ -155,11 +155,17 @@ if __name__ == "__main__":
     df3 = DM.get_data(3)
     df4 = DM.get_data(4)
 
-    df = df1
-    n = 2.50
-    theta_deg = 10.0
-    include_range: Tuple[float, float] = (1800, 2400)  # 条纹最明显波段
-    exclude_ranges: List[Tuple[float, float]] = []  # 强吸收段（可多段）
+    # df = df4
+    # n = 3.55
+    # theta_deg = 15.0
+    # include_range: Tuple[float, float] = (551, 3422)  # 条纹最明显波段
+
+    df = df2
+    n = 2.55
+    theta_deg = 15.0
+    include_range: Tuple[float, float] = (1834, 2512)  # 条纹最明显波段
+
+    exclude_ranges: List[Tuple[float, float]] = []
 
     # ============预处理阶段===========
     out = preprocess_and_plot_compare(

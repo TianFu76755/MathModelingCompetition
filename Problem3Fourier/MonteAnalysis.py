@@ -124,7 +124,7 @@ if __name__ == "__main__":
     # 1) 预处理（把这里替换为你的等间距波数 & 去基线/可用于拟合的反射信号）
     # 10°
     df = df3
-    include_range: Tuple[float, float] = (2000, 2700)  # 条纹最明显波段
+    include_range: Tuple[float, float] = (2032, 2721)  # 条纹最明显波段
     exclude_ranges: List[Tuple[float, float]] = []  # 强吸收段（可多段）
     out = preprocess_and_plot_compare(
         df,
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     distributions = ['normal', 'uniform']
     results = monte_carlo_simulation(
         nu_10, R10_meas, nu_15, R15_meas, d0_um, n_SiC_dispersion, noise_levels, distributions,
-        num_simulations=1
+        num_simulations=100
     )
 
     # 分析结果

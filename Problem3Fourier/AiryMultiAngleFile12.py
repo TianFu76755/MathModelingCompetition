@@ -38,7 +38,7 @@ if __name__ == "__main__":
     # 1) 预处理（把这里替换为你的等间距波数 & 去基线/可用于拟合的反射信号）
     # 10°
     df = df1
-    include_range: Tuple[float, float] = (1800, 2500)  # 条纹最明显波段
+    include_range: Tuple[float, float] = (1794, 2503)  # 条纹最明显波段 (1800, 2500)
     exclude_ranges: List[Tuple[float, float]] = []  # 强吸收段（可多段）
     out = preprocess_and_plot_compare(
         df,
