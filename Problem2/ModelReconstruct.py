@@ -7,18 +7,24 @@ from typing import Dict, Any, Optional, Tuple
 from Problem3Fourier.PreprocessAndPlotFunct import preprocess_and_plot_compare
 
 
-# 目标函数（用于最小二乘拟合）
-def fit_model(params: np.ndarray, nu: np.ndarray, R_meas: np.ndarray) -> np.ndarray:
+# 2. 两束干涉反射率模型
+def phase_two_beam(nu: np.ndarray, n_nu: np.ndarray, d_um: float, theta_i_rad: float, phi0: float) -> np.ndarray:
     """
-    基于模型的反射率计算： R(ν) = A + B * cos(Φ(ν))
+    计算反射率相位：Φ(ν) = 4π n(ν) d cm cos(θ_t(ν)) ν + φ0
     """
-    d_um, n0, phi, A, B = params
-    phase = 4 * np.pi * n0 * d_um * nu  # 示例计算，简化版模型
-    R_model = A + B * np.cos(phase + phi)  # 简单的余弦模型
-    return R_model - R_meas
+    d_cm = d_um * 1e-4
+    ct = np.cos(theta_i_rad)
+    return 4.0 * np.pi * n_nu * d_cm * ct * nu + phi0
 
-# 进行拟合
-def perform_fit(nu: np.ndarray, y: np.ndarray) -> Dict[str, Any]:
+def model_reflectance_two_beam(nu: np.ndarray, n_nu: np.ndarray, d_um: float, theta_i_rad: float, A: float, B: float, phi0: float) -> np.ndarray:
+    """
+    使用两束干涉模型预测反射率： R(ν) = A + B cos(Φ(ν))
+    """
+    ph = phase_two_beam(nu, n_nu, d_um, theta_i_rad, phi0)
+    return A + B * np.cos(ph)
+
+# 3. 执行最小二乘拟合
+def perform_fit(nu: np.ndarray, y: np.ndarray, theta_i_rad: float) -> Dict[str, Any]:
     """
     执行最小二乘拟合并返回结果。
     """
@@ -26,7 +32,7 @@ def perform_fit(nu: np.ndarray, y: np.ndarray) -> Dict[str, Any]:
     initial_params = [5.0, 2.6, 0.0, np.mean(y), np.std(y)]  # d_um, n0, phi, A, B
 
     # 执行最小二乘优化
-    result = least_squares(fit_model, initial_params, args=(nu, y))
+    result = least_squares(fit_model, initial_params, args=(nu, y, theta_i_rad))
 
     # 返回拟合结果
     return {
@@ -36,14 +42,23 @@ def perform_fit(nu: np.ndarray, y: np.ndarray) -> Dict[str, Any]:
         "message": result.message,  # 拟合信息
     }
 
-# 进行绘图
+def fit_model(params: np.ndarray, nu: np.ndarray, R_meas: np.ndarray, theta_i_rad: float) -> np.ndarray:
+    """
+    基于模型的反射率计算： R(ν) = A + B * cos(Φ(ν))
+    """
+    d_um, n0, phi, A, B = params
+    n_nu = np.full_like(nu, n0)  # 假设折射率为常数 n0
+    R_model = model_reflectance_two_beam(nu, n_nu, d_um, theta_i_rad, A, B, phi)
+    return R_model - R_meas
+
+# 4. 绘制拟合结果
 def plot_fit_results(nu: np.ndarray, y: np.ndarray, fit_result: Dict[str, Any]):
     """
     绘制拟合结果与实际数据对比图
     """
     params = fit_result["params"]
     d_um, n0, phi, A, B = params
-    R_fit = A + B * np.cos(4 * np.pi * n0 * d_um * nu + phi)  # 计算拟合结果
+    R_fit = model_reflectance_two_beam(nu, np.full_like(nu, n0), d_um, np.radians(10), A, B, phi)  # 使用拟合结果
 
     plt.figure(figsize=(10, 4))
     plt.plot(nu, y, label="原始数据", color="black", linewidth=1.5)
@@ -66,14 +81,14 @@ if __name__ == "__main__":
     df2 = DM.get_data(2)
 
     # 预处理数据
-    result1 = preprocess_and_plot_compare(df1, include_range=(1850, 2200), is_plot=True)
+    result1 = preprocess_and_plot_compare(df2, include_range=(2060, 2280), is_plot=True)
 
     # 获取处理后的数据
     nu1_uniform = result1["nu_uniform"]
     y1_uniform_demean = result1["y_uniform_demean"]
 
-    # 执行最小二乘拟合
-    fit_result = perform_fit(nu1_uniform, y1_uniform_demean)
+    # 执行最小二乘拟合，假设入射角为 10°
+    fit_result = perform_fit(nu1_uniform, y1_uniform_demean, np.radians(10))
 
     # 打印拟合结果
     print("拟合结果：", fit_result)
