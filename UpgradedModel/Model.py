@@ -74,6 +74,8 @@ class PreprocessConfig:
     sg_window_frac: float = 0.15  # 相对样本数；(0,1)
     sg_polyorder: int = 2
     normalize: bool = True        # 仅用于 FFT；拟合建议 False（或用 detrended）
+    include_range: Optional[Tuple[float, float]] = None  # 新增：选择波段范围
+
 
 class SpectrumPreprocessor:
     """
@@ -118,7 +120,6 @@ class SpectrumPreprocessor:
         return y0 / (rms + EPS) if rms > 0 else y0
 
     def run(self, df: pd.DataFrame) -> Dict[str, Any]:
-        # 列名容错
         col_nu = "波数 (cm-1)"
         col_R = "反射率 (%)"
         if col_nu not in df.columns or col_R not in df.columns:
@@ -127,6 +128,13 @@ class SpectrumPreprocessor:
         nu = df[col_nu].to_numpy(dtype=float)
         R_percent = df[col_R].to_numpy(dtype=float)
         R = R_percent / 100.0
+
+        # 应用 include_range 来选择波段
+        if self.cfg.include_range:
+            lo, hi = self.cfg.include_range
+            mask = (nu >= lo) & (nu <= hi)
+            nu = nu[mask]
+            R = R[mask]
 
         nu_grid, R_grid = self._to_uniform_grid(nu, R)
         R_detrended = self._detrend(R_grid)
@@ -779,7 +787,10 @@ if __name__ == "__main__":
         theta1_deg=10.0, theta2_deg=15.0,
         n_kind="cauchy",
         n0_init=2.60, B_init=0.0,
-        pre_cfg=PreprocessConfig(detrend=True, sg_window_frac=0.15, sg_polyorder=2, normalize=True),
+        pre_cfg=PreprocessConfig(
+            detrend=True, sg_window_frac=0.15, sg_polyorder=2, normalize=True,
+            include_range=(1800.0, 3000.0)
+        ),
         fit_signal="detrended",
         loss="cauchy",
     )
